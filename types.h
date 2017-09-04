@@ -1,7 +1,7 @@
 #ifndef TYPES_H
 #define TYPES_H
 #include <complex.h>
-#include <af/array.h>
+#include <arrayfire.h>
 
 #define MIN(x, y) (x < y ? x : y)
 #define MAX(x, y) (x < y ? y : x)
@@ -17,4 +17,18 @@ typedef struct Pos {
     float y;
 } Position;
 
+struct carray
+{
+    carray();
+    carray(int dim);
+
+    carray(int dim1, int dim2);
+    void refresh();
+    void resize(int dim);
+    void resize(int dim1, int dim2);
+
+    af::array a;
+    af::array r;
+    af::array i;
+};
 #endif // TYPES_H
