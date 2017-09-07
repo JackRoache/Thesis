@@ -36,11 +36,11 @@ void MOM::run()
 
     initialGuess();
 
-    Ez = carray(pow(space->probes.size(), 2) * space->freqs.size());
 
     for (int i = 0; i < info->iterations; i++){
         std::cout << "Iteration " << i + 1  << std::endl;
         iterateMom();
+        af::print("Er",  space->Er.a);
     }
 }
 
@@ -203,7 +203,8 @@ void MOM::inverseBuilder(carray &Efunc, carray &C, real k)
 
 void MOM::simulateSpace()
 {
-    Ez.resize(space->probes.size() * space->probes.size());
+    Ez.resize(space->probes.size() * space->probes.size() * space->freqs.size());
+
     for (size_t l = 0; l < space->freqs.size(); l++){
         float k = wavenumber(space->freqs[l]);
         for (size_t i = 0; i < space->probes.size(); i++){
@@ -217,21 +218,22 @@ void MOM::simulateSpace()
             }
             af::freeHost(_Esr);
             af::freeHost(_Esi);
-            Ez.refresh();
+
         }
     }
+    Ez.refresh();
 }
 
 void MOM::initialGuess()
 {
-    //simple initial guess, modify space
-    af::cfloat c(1);
-    space->Er.a = af::constant(c, space->Er.a.dims());
+    //simple initial guess, modify space    
+    space->Er.r = af::constant(1.0, space->Er.a.dims());
+    space->Er.i = af::constant(0.0, space->Er.a.dims());
+    space->Er.refresh();
 }
 
 void MOM::iterateMom()
 {
-    af::timer::start();
     std::vector<carray> computations;
     carray Ereg, Treg;
     carray inv;

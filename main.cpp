@@ -169,7 +169,7 @@ int main()
     carray Et, Es;
 
     std::vector<Position> probes;
-    std::vector<real> freqs = {5e9, 50e9, 100e9};
+    std::vector<real> freqs = {5e9};
 
     initKernels(cx);
 
@@ -183,9 +183,9 @@ int main()
             cx(index) = CX;
             cy(index) = CY;
 
-            if ((CX > -0.02 + CDX2)&&(CX < 0.02 - CDX2) && (CY > -0.02 + CDY2) && (CY < 0.02 - CDY2)){
+            if ((CX > -0.02)&& (CX < 0.02) && (CY > -0.02)&&(CY < 0.02)){
                 Er.r(index) = 1.5 ;
-                Er.i(index) = -0.2;
+                Er.i(index) = -0.1;
             } else {
                 Er.r(index) = 1;
                 Er.i(index) = 0;
@@ -222,7 +222,7 @@ int main()
     info.name = "Basic";
     info.iterations = 3;
 
-    surfToImage(cx, cy, Er, "Start");
+    surfToImage(cx, cy, space.Er, "Start");
     MOM mom;
 
     mom.setImagingSpace(&space);
