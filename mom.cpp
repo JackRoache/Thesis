@@ -40,11 +40,10 @@ void MOM::run()
     for (int i = 0; i < info->iterations; i++){
         std::cout << "Iteration " << i + 1  << std::endl;
         iterateMom();
-        af::print("Er",  space->Er.a);
     }
 }
 
-void MOM::mom(int probenum, real k)
+void MOM::mom(int probenum, real k, bool simulate)
 {
     //void mom(af::array &space->x, af::array &space->y, real dx, real dy, carray &Er, real k, std::vector<Position> &probes, int prob_num, carray &Es, carray &Et)
 
@@ -53,122 +52,75 @@ void MOM::mom(int probenum, real k)
     comp com(0,1);
     int N = space->x.elements();
 
-    Et.resize(N);
-    Es.resize(space->probes.size());
+    if (Et.a.elements() != N)
+        Et.resize(N);
+    if (Es.a.elements() != space->probes.size())
+        Es.resize(space->probes.size());
 
-    af::array p(N), x2(N), y2(N), pho(N);
-    carray bh(N), Er_n, d(N), bj(N), b(N), distance(N,N);
-    carray c(N, N);
-
-    float *x = space->x.host<float>();
-    float *y = space->y.host<float>();
-    real *Err = space->Er.r.host<float>();
-    real *Eri = space->Er.i.host<float>();
+    af::array pho(N), d(N), Er_n, b(N); //intermidiearies
+    carray bh(N);
+    af::array  p(N, N), c(N, N); //main matrix
 
     //offset matrix by 1 relative permability
-    Er_n.r = space->Er.r - 1;
-    Er_n.i = space->Er.i;
-    Er_n.refresh();
+    Er_n = space->Er.a - 1.0;
 
+    //calculate constants
     real a = sqrt(space->dx*space->dy / PI);
-    comp scale = com * PI * k * a * (real)0.5;
+    af::cfloat scale(0, PI * k * a * (real)0.5);
+    real bj = bessj(1, k*a);
 
-    for (int i = 0; i < N; i++){
-        comp Er0 = comp(Err[i], Eri[i]);
+    //Diaganol of matrix to solve
+    af::cfloat D = af::cfloat(0,0.5)*(PI*k*a* af::cfloat(bessj(1, a*k), -1 * bessy(1, a*k)) - af::cfloat(0,2));
+    d = D * (space->Er.a - 1) + 1;
 
-        //generate distances along x and y axis
-        x2 = af::tile(space->x(i), space->x.elements()) - space->x;
-        y2 = af::tile(space->y(i), space->y.elements()) - space->y;
+    //Bulk of matrix to solve
+    p = af::pow(af::tile(af::transpose(space->x), N, 1) - af::tile(space->x, 1, N), 2);
+    p = p + af::pow(af::tile(af::transpose(space->y), N, 1) - af::tile(space->y, 1, N), 2);
+    p = af::sqrt(p) * k;
+    bessj0(p, bh.r);
+    bessy0(p, bh.i);
+    bh.i = bh.i * -1;
+    bh.refresh();
 
-        //generate actual distances
-        p = af::pow(x2, 2) + af::pow(y2, 2);
-        p = af::sqrt(p);
-
-        //scale
-        p = p * k;
-
-        float b_j = bessj(1, k*a);
-        bj.r = b_j;
-        bj.i = 0;
-        bj.refresh();
-
-        //generate bessel fields
-        bessj0(p, bh.r);
-        bessy0(p, bh.i);
-        bh.i = bh.i * -1;
-        bh.refresh();
-
-        carray temp(bj.a.elements());
-        af::cfloat s(scale.real(), scale.imag());
-        temp.a = bj.a * Er_n.a;
-        temp.a = temp.a * bh.a;
-        temp.a = temp.a * s;
-
-        c.a.row(i) = temp.a;
-
-        //this can be done outside the loop if wanted
-        comp n = comp(1,0) + (Er0 - comp(1)) * com / (real)2.0 * PI * k * a * comp(bessj(1, a*k) - com * bessy(1, a*k)) - comp(2.0) * com;
-        d.r(i) = n.real();
-        d.i(i) = n.imag();
-
-    }
-
-    d.refresh();
+    c = bj * af::tile(af::transpose(Er_n, false), N, 1);
+    c = c * bh.a;
+    c = c * scale;
 
     //combine c and d, d is the diaganol of c
     for (int i = 0; i < N; i++){
-        c.a(i,i) = d.a(i);
+        c(i,i) = d(i);
     }
 
-    for (int i = 0; i <N; i++){
-        pho(i) = pow(x[i] - space->probes[probenum].x, 2) + pow(y[i] - space->probes[probenum].y, 2);
-    }
-    pho = af::sqrt(pho);
+    real probeX = space->probes[probenum].x;
+    real probeY = space->probes[probenum].y;
 
-    real *_p = pho.host<real>();
-    for (int i = 0; i < N; i++){
-        comp n = com * k * (real)0.25 * comp(bessj(0,k*_p[i]) - com * bessy(0, k * _p[i]));
-        b.r(i) = n.real();
-        b.i(i) = n.imag();
-    }
+    pho = af::pow(space->x - probeX, 2) + af::pow(space->y - probeY, 2);
+    pho = af::sqrt(pho) * k;
 
-    af::freeHost(_p);
-    b.refresh();
-    Et.a = af::solve(c.a,b.a);
+    af::array phobj, phoby;
 
-    //DELETE
-    //    real *_Err = space->Er.r.host<real>();
-    //    real *_Eri = Er.i.host<real>();
-    real *_Etr = Et.r.host<real>();
-    real *_Eti = Et.i.host<real>();
+    bessj0(pho, phobj);
+    bessy0(pho, phoby);
+    b = af::cfloat(0, 1) * k * 0.25 * (phobj - af::cfloat(0,1) * phoby);
+    Et.a = af::solve(c,b);
 
-    for (size_t i = 0; i < space->probes.size(); i++){
-        float x0 = space->probes[i].x;
-        float y0 = space->probes[i].y;
-        comp total = 0;
+    //Simulate recieved EM for the probes.
+    if (simulate){
+        for (size_t i = 0; i < space->probes.size(); i++){
+            float x0 = space->probes[i].x;
+            float y0 = space->probes[i].y;
+            af::cfloat total = 0;
 
-        for (int j = 0; j < N; j++){
-            float p = sqrt(pow(x0 - x[j], 2) + pow(y0 - y[j], 2));
-            comp er = comp(Err[j], Eri[j]);
-            comp et = comp(_Etr[j], _Eti[j]);
-            total += -com * PI * k / (real)2.0 * (er - (real)1.0) * et * a * comp(bessj(1, k*a)) * comp(bessj(0, k*p) - com * bessy(0, k*p));
+            af::array dis;
+            af::array esbj, esby;
+
+            dis = af::sqrt(af::pow(x0 - space->x, 2) + af::pow(y0 - space->y, 2));
+            bessj0(dis, esbj);
+            bessy0(dis, esby);
+            af::cfloat cons = af::cfloat(0,-1) * PI * k/ 2.0 * a * bessj(1, k*a);
+            Es.a(i) = af::sum(cons * (space->Er.a - 1) * Et.a * (esbj - af::cfloat(0, 1) * esby));
         }
-        Es.r(i) = total.real();
-        Es.i(i) = total.imag();
-
-
     }
-
-    //DELETE
-    //    af::freeHost(_Err);
-    //    af::freeHost(_Eri);
-    af::freeHost(_Etr);
-    af::freeHost(_Eti);
-    af::freeHost(x);
-    af::freeHost(y);
-    af::freeHost(Eri);
-    af::freeHost(Err);
-
 }
 
 void MOM::inverseBuilder(carray &Efunc, carray &C, real k)
@@ -180,56 +132,51 @@ void MOM::inverseBuilder(carray &Efunc, carray &C, real k)
     int M = space->probes.size();
     int N = space->x.elements();
     C.resize(M, N);
-    af::array p(N);
+    af::array p, x2, y2;
+    af::array p2;
 
     real a = sqrt(space->dx*space->dy / PI);
 
-    for (int i = 0; i < M; i++){
-        real x0 = space->probes[i].x;
-        real y0 = space->probes[i].y;
+    af::array probeX(M), probeY(M);
 
-        p = af::pow(space->x - x0, 2) + af::pow(space->y - y0, 2);
-        p = af::sqrt(p) * k;
-        float bj1 = bessj(1, k*a);
-        af::array bj0, by0;
-        bessj0(p, bj0);
-        bessy0(p, by0);
-
-        C.a.row(i) = Efunc.a * af::cfloat(0, -PI * k * 0.5) * a * bj1 * (bj0 + af::cfloat(-1) * by0);
+    for(int i = 0; i < M; i++){
+        probeX(i) = space->probes[i].x;
+        probeY(i) = space->probes[i].y;
     }
 
+    x2 = af::pow(af::tile(af::transpose(space->x), M, 1) - af::tile(probeX, 1, N), 2);
+    y2 = af::pow(af::tile(af::transpose(space->y), M, 1) - af::tile(probeY, 1, N), 2);
+    p = af::sqrt(x2 + y2);
+    p = p * k;
+    af::array bj0, by0;
+    bessj0(p, bj0);
+    bessy0(p, by0);
 
+    af::cfloat cons = af::cfloat(0, -PI * k * 0.5) * a * bessj(1, k*a);
+    C.a = cons * af::tile(af::transpose(Efunc.a),M,1);
+    C.a = C.a * (bj0 - af::cfloat(0, 1) * by0);
 }
 
 void MOM::simulateSpace()
 {
     Ez.resize(space->probes.size() * space->probes.size() * space->freqs.size());
-
+    int probesSize = space->probes.size();
     for (size_t l = 0; l < space->freqs.size(); l++){
         float k = wavenumber(space->freqs[l]);
         for (size_t i = 0; i < space->probes.size(); i++){
-            mom(i, k);
-            real *_Esr = Es.r.host<float>();
-            real *_Esi = Es.i.host<float>();
-            for (size_t j = 0; j < space->probes.size(); j++){
-                comp e(_Esr[i], _Esi[i]);
-                Ez.r(i*space->probes.size() + j) = e.real();
-                Ez.i(i*space->probes.size() + j) = e.imag();
-            }
-            af::freeHost(_Esr);
-            af::freeHost(_Esi);
+            mom(i, k, true);
 
+            af::seq s(i*probesSize, (i+1)*probesSize - 1);
+            Ez.a(s) = Es.a;
         }
     }
-    Ez.refresh();
 }
 
 void MOM::initialGuess()
 {
-    //simple initial guess, modify space    
-    space->Er.r = af::constant(1.0, space->Er.a.dims());
-    space->Er.i = af::constant(0.0, space->Er.a.dims());
-    space->Er.refresh();
+    //simple initial guess, modify space
+
+    space->Er.a = af::constant(af::cfloat(1,0), space->Er.a.dims());
 }
 
 void MOM::iterateMom()
@@ -241,13 +188,14 @@ void MOM::iterateMom()
     for (size_t f = 0; f < space->freqs.size(); f++){
         real k = wavenumber(space->freqs[f]);
         for (size_t i = 0; i < space->probes.size(); i++){
-            mom(i, k);
+            mom(i, k, false);
             computations.push_back(Et);
         }
     }
 
     std::vector<carray> matrices;
-    carray m, B, B2;
+    carray m, B2;
+    af::array B;
     for (size_t f = 0; f < space->freqs.size(); f++){
         float k = wavenumber(space->freqs[f]);
         for (size_t i = 0; i < space->probes.size(); i++){
@@ -256,49 +204,41 @@ void MOM::iterateMom()
         }
     }
 
-    B.resize(pow(space->probes.size(), 2) * space->freqs.size(), space->x.elements());
+    B =  matrices.at(0).a;
 
-    for (size_t i = 0; i < space->probes.size(); i++){
-        for (size_t j = 0; j < space->probes.size(); j++){
-            for (dim_t k = 0; k < space->y.elements(); k++){
-                B.a(i*space->probes.size() + j, k) = matrices[i].a(j,k);
-            }
-        }
+    for (int i = 1; i < matrices.size(); i++){
+        B = af::join(0, B, matrices[i].a);
     }
 
     real lambda = 100;
 
-    int L = B.a.col(0).elements(); //rows
-    int N = B.a.row(0).elements(); //columns
+    int L = B.col(0).elements(); //rows
+    int N = B.row(0).elements(); //columns
     B2.resize(N,N);
 
     B2.i = af::constant(0, B2.i.dims());
     B2.r = af::constant(0, B2.r.dims());
 
+    //set diaganol to lambda
     for (int i = 0; i < N; i++)
         B2.r(i,i) = lambda;
 
     B2.refresh();
 
-
-    B.a = af::join(0, B.a, B2.a);
+    B = af::join(0, B, B2.a);
 
     L = Ez.a.elements();
     Ereg.resize(N + L);
-    for (int i = 0; i < L; i++){
-        Ereg.a(i) = Ez.a(i);
-    }
-    for (int i = L; i < L + N; i++){
-        Ereg.a(i) = 0;
-    }
+    Ereg.a(af::seq(0, L-1)) = Ez.a;
+    Ereg.a(af::seq(L, L+N-1)) = 0;
 
     //solve the system
     pinv(Ereg, Treg);
 
-    Treg.a = af::matmul(Treg.a, B.a);
+    Treg.a = af::matmul(Treg.a, B);
 
     af::cfloat n(1);
-    space->Er.a = Treg.a + n; //correct for offset
+    space->Er.a = af::transpose(Treg.a) + n; //correct for offset
 }
 
 void MOM::pinv(carray &A, carray &Ai)

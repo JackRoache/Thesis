@@ -39,7 +39,7 @@ public:
 
 private:
 
-    void mom(int probenum, float freq);
+    void mom(int probenum, float freq, bool simulate);
     void inverseBuilder(carray &Efunc, carray &C, real k);
 
     void simulateSpace();

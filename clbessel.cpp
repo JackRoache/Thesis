@@ -18,7 +18,7 @@ cl_kernel kbessy0 = 0;
 static void launch_kernel(af::array &in, af::array &out, int num, cl_kernel kernel)
 {
     //setup af memory
-    out = af::array(in.elements());
+    out = af::array(in.dims());
 
     float *_in = in.device<float>();
     float *_out = out.device<float>();

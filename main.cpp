@@ -205,6 +205,13 @@ int main()
     }
     Er.refresh();
 
+    float _t[] = {1,2,3};
+    af::array t(3, 1, _t);
+    af::print("t", t);
+    af::print("tiled", af::tile(t, 1, 3));
+    af::print("transposed", af::tile(af::transpose(t), 3, 1));
+    af::print("operation", af::tile(af::transpose(t), 3, 1) - af::tile(t, 1, 3));
+
     //init mom structs
 
     ImagingSpace space;
