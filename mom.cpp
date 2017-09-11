@@ -210,7 +210,7 @@ void MOM::iterateMom()
         B = af::join(0, B, matrices[i].a);
     }
 
-    real lambda = 100;
+    real lambda = info->lambda;
 
     int L = B.col(0).elements(); //rows
     int N = B.row(0).elements(); //columns

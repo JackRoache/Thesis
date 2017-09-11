@@ -1,2 +1,5 @@
 Thesis.pro.user
 *.autosave
+ThesisTests/ThesisTests.pro.user
+*.bmp
+build-ThesisTests-Desktop_Qt_5_9_1_clang_64bit-Debug
