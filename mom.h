@@ -11,6 +11,8 @@ struct ImagingSpace {
     af::array y; //corresponding positions of Er
     carray Er; //space that will be simulated
 
+    carray initalGuess;
+
     real dx {0}; //voxel size
     real dy {0};
 
@@ -36,6 +38,9 @@ public:
     void setImagingSpace(ImagingSpace *space);
     void setIterations(RunInfo *info);
 
+    typedef std::function<void(RunInfo *, ImagingSpace *, carray &, int)> imageCB;
+    void setCallBack(imageCB cb);
+
     void run();
 
 private:
@@ -44,7 +49,6 @@ private:
     void inverseBuilder(carray &Efunc, carray &C, real k);
 
     void simulateSpace();
-    void initialGuess();
     void iterateMom();
 
     void spaceToImage();
@@ -54,8 +58,10 @@ private:
 
     RunInfo *info {0};
     ImagingSpace *space {0};
+    imageCB cb {0};
     carray Es, Et;
     carray Ez; //Simulated data
+
 };
 
 #endif // MOM_H

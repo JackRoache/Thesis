@@ -30,23 +30,26 @@ void MOM::setIterations(RunInfo *info)
     this->info = info;
 }
 
+void MOM::setCallBack(MOM::imageCB fn)
+{
+    cb = fn;
+}
+
 void MOM::run()
 {
     simulateSpace();
 
-    initialGuess();
-
-
     for (int i = 0; i < info->iterations; i++){
         std::cout << "Iteration " << i + 1  << std::endl;
         iterateMom();
+
+        if(cb)
+            cb(info, space, space->Er, i);
     }
 }
 
 void MOM::mom(int probenum, real k, bool simulate)
 {
-    //void mom(af::array &space->x, af::array &space->y, real dx, real dy, carray &Er, real k, std::vector<Position> &probes, int prob_num, carray &Es, carray &Et)
-
     assert(space->x.elements() == space->y.elements());
     assert(space->x.elements() == space->Er.a.elements());
     comp com(0,1);
@@ -61,7 +64,7 @@ void MOM::mom(int probenum, real k, bool simulate)
     carray bh(N);
     af::array  p(N, N), c(N, N); //main matrix
 
-    //offset matrix by 1 relative permability
+//    //offset matrix by 1 relative permability
     Er_n = space->Er.a - 1.0;
 
     //calculate constants
@@ -170,13 +173,6 @@ void MOM::simulateSpace()
             Ez.a(s) = Es.a;
         }
     }
-}
-
-void MOM::initialGuess()
-{
-    //simple initial guess, modify space
-
-    space->Er.a = af::constant(af::cfloat(1,0), space->Er.a.dims());
 }
 
 void MOM::iterateMom()
