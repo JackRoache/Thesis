@@ -7,7 +7,7 @@
 #define MAX(x, y) (x < y ? y : x)
 
 typedef std::complex<float> comp;
-typedef float real;
+//typedef float float;
 
 #define acomp c32
 #define areal f32

@@ -1,5 +1,8 @@
 #include "clbessel.h"
-#include <OpenCL/opencl.h>
+
+//#include <OpenCL/opencl.h>
+#include <CL/opencl.h>
+
 #include <stdio.h>
 
 #include "arrayfire.h"

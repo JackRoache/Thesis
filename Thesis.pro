@@ -13,7 +13,9 @@ SOURCES += main.cpp \
     bessel.cpp \
     clbessel.cpp \
     mom.cpp \
-    types.cpp
+    types.cpp \
+    tissueproperties.cpp \
+    phantomfile.cpp
 
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which as been marked deprecated (the exact warnings
@@ -33,13 +35,31 @@ HEADERS += \
     clbessel.h \
     helper.h \
     mom.h \
-    types.h
+    types.h \
+    tissueproperties.h \
+    phantomfile.h
 
-macx: LIBS += -L$$PWD/../../../../../usr/local/lib/ -laf.3.5.0
-macx: LIBS += -framework OpenCL
+#macx {
+#macx: LIBS += -L$$PWD/../../../../../usr/local/lib/ -laf.3.5.0
+#macx: LIBS += -framework OpenCL
 
-INCLUDEPATH += /usr/local/include
-DEPENDPATH += /usr/local/include
+#INCLUDEPATH += /usr/local/include
+#DEPENDPATH += /usr/local/include
+#}
+
+
 
 DISTFILES += \
     besselj0.cl
+
+
+
+win32: LIBS += -L$$PWD/'../../Program Files/ArrayFire/v3/lib/' -laf
+
+INCLUDEPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
+DEPENDPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
+
+win32: LIBS += -L$$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/lib/x86_64/' -lOpenCL
+
+INCLUDEPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'
+DEPENDPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'

@@ -2,13 +2,14 @@
 
 #include <assert.h>
 #include <arrayfire.h>
+#include <algorithm>
 
 #include "bessel.h" //CPU implementation
 #include "clbessel.h" //OpenCL implementation
 
-#define CE0     (real)(8.854e-12)
-#define CU0     (real)(12.56e-7)
-#define PI      (real)(3.14159265)
+#define CE0     (float)(8.854e-12)
+#define CU0     (float)(12.56e-7)
+#define PI      (float)(3.14159265)
 #define CC      3e8
 #define CEM     1
 
@@ -48,11 +49,10 @@ void MOM::run()
     }
 }
 
-void MOM::mom(int probenum, real k, bool simulate)
+void MOM::mom(int probenum, float k, bool simulate)
 {
     assert(space->x.elements() == space->y.elements());
     assert(space->x.elements() == space->Er.a.elements());
-    comp com(0,1);
     int N = space->x.elements();
 
     if (Et.a.elements() != N)
@@ -60,17 +60,18 @@ void MOM::mom(int probenum, real k, bool simulate)
     if (Es.a.elements() != space->probes.size())
         Es.resize(space->probes.size());
 
+
     af::array pho(N), d(N), Er_n, b(N); //intermidiearies
     carray bh(N);
     af::array  p(N, N), c(N, N); //main matrix
 
-//    //offset matrix by 1 relative permability
+    //offset matrix by 1 relative permability
     Er_n = space->Er.a - 1.0;
 
     //calculate constants
-    real a = sqrt(space->dx*space->dy / PI);
-    af::cfloat scale(0, PI * k * a * (real)0.5);
-    real bj = bessj(1, k*a);
+    float a = sqrt(space->dx*space->dy / PI);
+    af::cfloat scale(0, PI * k * a * (float)0.5);
+    float bj = bessj(1, k*a);
 
     //Diaganol of matrix to solve
     af::cfloat D = af::cfloat(0,0.5)*(PI*k*a* af::cfloat(bessj(1, a*k), -1 * bessy(1, a*k)) - af::cfloat(0,2));
@@ -80,6 +81,7 @@ void MOM::mom(int probenum, real k, bool simulate)
     p = af::pow(af::tile(af::transpose(space->x), N, 1) - af::tile(space->x, 1, N), 2);
     p = p + af::pow(af::tile(af::transpose(space->y), N, 1) - af::tile(space->y, 1, N), 2);
     p = af::sqrt(p) * k;
+
     bessj0(p, bh.r);
     bessy0(p, bh.i);
     bh.i = bh.i * -1;
@@ -94,8 +96,8 @@ void MOM::mom(int probenum, real k, bool simulate)
         c(i,i) = d(i);
     }
 
-    real probeX = space->probes[probenum].x;
-    real probeY = space->probes[probenum].y;
+    float probeX = space->probes[probenum].x;
+    float probeY = space->probes[probenum].y;
 
     pho = af::pow(space->x - probeX, 2) + af::pow(space->y - probeY, 2);
     pho = af::sqrt(pho) * k;
@@ -112,33 +114,32 @@ void MOM::mom(int probenum, real k, bool simulate)
         for (size_t i = 0; i < space->probes.size(); i++){
             float x0 = space->probes[i].x;
             float y0 = space->probes[i].y;
-            af::cfloat total = 0;
 
             af::array dis;
-            af::array esbj, esby;
+            carray esb;
 
             dis = af::sqrt(af::pow(x0 - space->x, 2) + af::pow(y0 - space->y, 2));
-            bessj0(dis, esbj);
-            bessy0(dis, esby);
+            dis = dis * k;
+            bessj0(dis, esb.r);
+            bessy0(dis, esb.i);
+            esb.i = esb.i * -1;
+            esb.refresh();
             af::cfloat cons = af::cfloat(0,-1) * PI * k/ 2.0 * a * bessj(1, k*a);
-            Es.a(i) = af::sum(cons * (space->Er.a - 1) * Et.a * (esbj - af::cfloat(0, 1) * esby));
+            Es.a(i) = af::sum(cons * (space->Er.a - 1) * Et.a * esb.a);
         }
     }
 }
 
-void MOM::inverseBuilder(carray &Efunc, carray &C, real k)
+void MOM::inverseBuilder(carray &Efunc, carray &C, float k)
 {
-    //void inverseMatrixBuilder(af::array &xc, af::array &yc, real dx, real dy, std::vector<Position> &probes, real k ,real EM, carray &Efunc, carray &C)
-
     assert(space->x.elements() == space->y.elements());
 
     int M = space->probes.size();
     int N = space->x.elements();
     C.resize(M, N);
     af::array p, x2, y2;
-    af::array p2;
 
-    real a = sqrt(space->dx*space->dy / PI);
+    float a = sqrt(space->dx*space->dy / PI);
 
     af::array probeX(M), probeY(M);
 
@@ -179,10 +180,9 @@ void MOM::iterateMom()
 {
     std::vector<carray> computations;
     carray Ereg, Treg;
-    carray inv;
 
     for (size_t f = 0; f < space->freqs.size(); f++){
-        real k = wavenumber(space->freqs[f]);
+        float k = wavenumber(space->freqs[f]);
         for (size_t i = 0; i < space->probes.size(); i++){
             mom(i, k, false);
             computations.push_back(Et);
@@ -206,7 +206,7 @@ void MOM::iterateMom()
         B = af::join(0, B, matrices[i].a);
     }
 
-    real lambda = info->lambda;
+    float lambda = info->lambda;
 
     int L = B.col(0).elements(); //rows
     int N = B.row(0).elements(); //columns
@@ -220,7 +220,6 @@ void MOM::iterateMom()
         B2.r(i,i) = lambda;
 
     B2.refresh();
-
     B = af::join(0, B, B2.a);
 
     L = Ez.a.elements();
@@ -239,7 +238,7 @@ void MOM::iterateMom()
 
 void MOM::pinv(carray &A, carray &Ai)
 {
-    int minDim = std::min(A.a.row(0).elements(), A.a.col(0).elements());
+    int minDim = min(A.a.row(0).elements(), A.a.col(0).elements());
     af::array E(minDim, minDim);
     af::array u, vt;
     af::array s;
@@ -261,7 +260,7 @@ void MOM::spaceToImage()
 
 }
 
-real MOM::wavenumber(real freq)
+float MOM::wavenumber(float freq)
 {
     return sqrt(pow(2 * PI * freq, 2) * CU0 * CEM * CE0);
 }

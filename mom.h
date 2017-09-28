@@ -13,11 +13,11 @@ struct ImagingSpace {
 
     carray initalGuess;
 
-    real dx {0}; //voxel size
-    real dy {0};
+    float dx {0}; //voxel size
+    float dy {0};
 
-    real lx {0}; //dimensions of space
-    real ly {0};
+    float lx {0}; //dimensions of space
+    float ly {0};
 
     std::vector<Position> probes; //probes positions to simulate
     std::vector<float> freqs; //frequencies to simulate
@@ -38,7 +38,7 @@ public:
     void setImagingSpace(ImagingSpace *space);
     void setIterations(RunInfo *info);
 
-    typedef std::function<void(RunInfo *, ImagingSpace *, carray &, int)> imageCB;
+    typedef void (*imageCB)(RunInfo *, ImagingSpace *, carray &, int);
     void setCallBack(imageCB cb);
 
     void run();
@@ -46,14 +46,14 @@ public:
 private:
 
     void mom(int probenum, float freq, bool simulate);
-    void inverseBuilder(carray &Efunc, carray &C, real k);
+    void inverseBuilder(carray &Efunc, carray &C, float k);
 
     void simulateSpace();
     void iterateMom();
 
     void spaceToImage();
 
-    real wavenumber(real freq);
+    float wavenumber(float freq);
     void pinv(carray &A, carray &Ai);
 
     RunInfo *info {0};
