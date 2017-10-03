@@ -11,6 +11,9 @@ struct ImagingSpace {
     af::array y; //corresponding positions of Er
     carray Er; //space that will be simulated
 
+    float minReal, maxReal;
+    float minImag, maxImag; //for imaging purposes
+
     carray initalGuess;
 
     float dx {0}; //voxel size
@@ -45,7 +48,7 @@ public:
 
 private:
 
-    void mom(int probenum, float freq, bool simulate);
+    void mom(int probenum, float freq, bool simulate, carray &Et, carray &Es);
     void inverseBuilder(carray &Efunc, carray &C, float k);
 
     void simulateSpace();
@@ -59,7 +62,7 @@ private:
     RunInfo *info {0};
     ImagingSpace *space {0};
     imageCB cb {0};
-    carray Es, Et;
+//    carray Es, Et;
     carray Ez; //Simulated data
 
 };

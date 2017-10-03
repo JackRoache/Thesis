@@ -60,27 +60,36 @@ QColor interpolate(QColor a, QColor b, float t)
 
     return final;
 }
-void surfToImage(const af::array &x, const af::array &y, const carray &Er, const QString &name, int cnx, int cny)
+void surfToImage(const af::array &x, const af::array &y, const carray &Er, const QString &name, int cnx, int cny, ImagingSpace *space, bool firstRun)
 {
     QImage imReal(cnx, cny, QImage::Format_RGB32);
     QImage imImag(cnx, cny, QImage::Format_RGB32);
     float minR = 1000, maxR = -1000, minI = 1000, maxI = -1000;
 
     Q_ASSERT(cnx * cny == Er.a.elements());
-
+    uint32_t * dReal = (uint32_t *)imReal.bits();
+    uint32_t * dImag  = (uint32_t*)imImag.bits();
     float * dataR = af::real(Er.a).host<float>();
     float * dataI = af::imag(Er.a).host<float>();
 
-    for (dim_t i = 0; i < Er.a.elements(); i++){
-        comp num = comp(dataR[i], dataI[i]);
-        minR = MIN(minR, num.real());
-        maxR = MAX(maxR, num.real());
-        minI = MIN(minI, num.imag());
-        maxI = MAX(maxI, num.imag());
+    if (firstRun){
+        for (dim_t i = 0; i < Er.a.elements(); i++){
+            comp num = comp(dataR[i], dataI[i]);
+            minR = MIN(minR, num.real());
+            maxR = MAX(maxR, num.real());
+            minI = MIN(minI, num.imag());
+            maxI = MAX(maxI, num.imag());
+        }
+        space->maxImag = maxI;
+        space->minImag = minI;
+        space->maxReal = maxR;
+        space->minReal = minR;
+    } else {
+        minR = space->minReal;
+        maxR = space->maxReal;
+        minI = space->minImag;
+        maxI = space->maxImag;
     }
-
-    uint32_t * dReal = (uint32_t *)imReal.bits();
-    uint32_t * dImag  = (uint32_t*)imImag.bits();
 
     QColor first("yellow");
     QColor second("blue");
@@ -91,19 +100,21 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
 
         if (minR != maxR){
             float sr = (num.real() - minR) / (maxR - minR);
+            sr = min(max(0.0, sr), 1.0);
             re = interpolate(first, second, sr);
             *dReal++ = re.rgb();
         }
 
         if (minI != maxI){
             float si =  (num.imag() - minI) / (maxI - minI);
+            si = min(max(0.0, si), 1.0);
             im = interpolate(first, second, si);
             *dImag++ = im.rgb();
         }
     }
 
-//    af::freeHost(dataR);
-//    af::freeHost(dataI);
+    //    af::freeHost(dataR);
+    //    af::freeHost(dataI);
 
     if (minI != maxI){
         QFile f1(name + QString("_imag.bmp"));
@@ -124,7 +135,7 @@ void iterationImage(RunInfo *info, ImagingSpace *space, carray &field, int itera
     name << info->name << "/" << iteration;
     int nx = space->lx / space->dx;
     int ny = space->ly / space->dy;
-    surfToImage(space->x, space->y, field, name.str().c_str(), nx, ny);
+    surfToImage(space->x, space->y, field, name.str().c_str(), nx, ny, space, false);
 }
 
 void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace &space, QMap<int, float> &permitivity, QMap<int, float> &conductivity, af::cfloat medium, float freq)
@@ -172,12 +183,12 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
         x += space.dx / downsample;
     }
 
-//    af::print("x", space.x);
-//    af::print("y", space.y);
+    //    af::print("x", space.x);
+    //    af::print("y", space.y);
 
-    space.Er.refresh();
     float omega = 2 * PI * freq;
-    space.Er.i = space.Er.i * -1 / freq;
+    space.Er.i = space.Er.i * -1 / omega;
+    space.Er.refresh();
     space.Er.a = space.Er.a / (downsample * downsample); //correct for downsampling
     space.Er.a = space.Er.a / medium;
     std::cout << "Finished Generating Phantom" << std::endl;
@@ -205,8 +216,8 @@ void runBim(ImagingSpace &space, RunInfo &info)
     QString startName = QString(info.name.c_str()) + QString("/Start");
     QString endName = QString(info.name.c_str()) + QString("/Done");
     QString initialGuess = QString(info.name.c_str()) + QString("/Guess");
-    surfToImage(space.x, space.y, space.Er, startName.toUtf8().data(), nx, ny);
-    surfToImage(space.x, space.y, space.initalGuess, initialGuess.toUtf8().data(), nx, ny);
+    surfToImage(space.x, space.y, space.Er, startName.toUtf8().data(), nx, ny, &space, true);
+    surfToImage(space.x, space.y, space.initalGuess, initialGuess.toUtf8().data(), nx, ny, &space, false);
     std::cout << "Start BIM" << std::endl;
     MOM mom;
     mom.setCallBack(iterationImage);
@@ -214,30 +225,33 @@ void runBim(ImagingSpace &space, RunInfo &info)
     mom.setIterations(&info);
 
     mom.run();
-    surfToImage(space.x, space.y, space.Er, endName.toUtf8().data(), nx, ny);
+    surfToImage(space.x, space.y, space.Er, endName.toUtf8().data(), nx, ny, &space, false);
 }
 
-void simple_phantom()
+void simple_phantom(int freq)
 {
-    af::cfloat medium(250, 0);
+    af::cfloat medium(40, 0);
 
     ImagingSpace space;
     space.dx = 1.1e-3 * 4;
     space.dy = 1.1e-3 * 4;
     space.lx = space.dx * 256 / 4;
     space.ly = space.dy * 256 / 4;
-    space.freqs.push_back(1e9); //1GHz
+    space.freqs.push_back(freq);
 
     RunInfo info;
-    info.iterations = 50;
-    info.lambda = 0;
+    info.iterations = 10;
+    info.lambda = 0.1;
 
     PhantomFile phant("det_head_u2.med", 256, 256, 128);
     TissueProperties props;
 
-    generatePhantom(phant, 64, 4, space, props.permitivity1ghz(), props.conductivity1ghz(), medium, 1e9);
+    QMap<int, float> perm = props.permitivity(freq);
+    QMap<int, float> cond = props.conductivity(freq);
 
-    generateProbes(space, 0.2, 0.2, 12);
+    generatePhantom(phant, 64, 4, space, perm, cond, medium, freq);
+
+    generateProbes(space, 0.2, 0.2, 36);
     carray phantom = space.Er;
 
     //simple initial guess
@@ -251,7 +265,7 @@ void simple_phantom()
     //Circular initial guess
 
     int nx = space.lx / space.dx;
-    int ny = space.ly / space.ly;
+    int ny = space.ly / space.dy;
 
     int index = 0;
     for (int i = 0; i < nx; i++){
@@ -260,11 +274,11 @@ void simple_phantom()
             float y = j * space.ly / ny - space.lx / 2;
             float r = std::sqrt(x*x + y*y);
 
-            if (r < 7){
-                space.initalGuess.r(index) = 860;
+            if (r < 0.07){
+                space.initalGuess.r(index) = 50;
                 space.initalGuess.i(index) = 0;
             } else {
-                space.initalGuess.r(index) = 250;
+                space.initalGuess.r(index) = 10;
                 space.initalGuess.i(index) = 0;
             }
             index++;
@@ -301,7 +315,7 @@ int main()
 
     initKernels(cx);
 
-    simple_phantom();
+    simple_phantom(600000000);
     return 0;
 
     //    Build up an imaging space
@@ -360,14 +374,14 @@ int main()
     info.name = "Basic";
     info.iterations = 3;
 
-    surfToImage(cx, cy, space.Er, "Start", space.dx, space.dy);
-    MOM mom;
+//    surfToImage(cx, cy, space.Er, "Start", space.dx, space.dy);
+//    MOM mom;
 
-    mom.setImagingSpace(&space);
-    mom.setIterations(&info);
+//    mom.setImagingSpace(&space);
+//    mom.setIterations(&info);
 
-    mom.run();
-    surfToImage(cx, cy, space.Er, "Done", space.dx, space.dy);
+//    mom.run();
+//    surfToImage(cx, cy, space.Er, "Done", space.dx, space.dy);
 
     return 1;
 }

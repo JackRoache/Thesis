@@ -49,7 +49,7 @@ void MOM::run()
     }
 }
 
-void MOM::mom(int probenum, float k, bool simulate)
+void MOM::mom(int probenum, float k, bool simulate, carray &Et, carray &Es)
 {
     assert(space->x.elements() == space->y.elements());
     assert(space->x.elements() == space->Er.a.elements());
@@ -92,6 +92,8 @@ void MOM::mom(int probenum, float k, bool simulate)
     c = c * scale;
 
     //combine c and d, d is the diaganol of c
+    std::cout << "N " << N << " dims " << c.dims() << " " << c.dims()[0] << std::endl;
+    assert(N = c.dims()[0] == N);
     for (int i = 0; i < N; i++){
         c(i,i) = d(i);
     }
@@ -168,7 +170,8 @@ void MOM::simulateSpace()
     for (size_t l = 0; l < space->freqs.size(); l++){
         float k = wavenumber(space->freqs[l]);
         for (size_t i = 0; i < space->probes.size(); i++){
-            mom(i, k, true);
+            carray Et, Es;
+            mom(i, k, true, Et, Es);
 
             af::seq s(i*probesSize, (i+1)*probesSize - 1);
             Ez.a(s) = Es.a;
@@ -184,8 +187,9 @@ void MOM::iterateMom()
     for (size_t f = 0; f < space->freqs.size(); f++){
         float k = wavenumber(space->freqs[f]);
         for (size_t i = 0; i < space->probes.size(); i++){
-            mom(i, k, false);
+            carray Et, Es;
             computations.push_back(Et);
+            mom(i, k, false, computations.at(computations.size()-1), Es);
         }
     }
 

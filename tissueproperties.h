@@ -7,56 +7,44 @@ class TissueProperties
 public:
     TissueProperties();
 
-    QMap<int, float> permitivity100mhz() const{
-        return p100mhz;
-    }
-    QMap<int, float> conductivity100mhz() const{
-        return c100mhz;
-    }
+    QMap<int, float> permitivity(int freq) const;
+    QMap<int, float> conductivity(int freq) const;
 
-    QMap<int, float> permitivity500mhz() const{
-        return p500mhz;
-    }
-    QMap<int, float> conductivity500mhz() const{
-        return c500mhz;
-    }
+    QMap<int, float> lossTangent(int freq) const;
 
-    QMap<int, float> permitivity1ghz() const{
-        return p1ghz;
-    }
-    QMap<int, float> conductivity1ghz() const{
-        return c1ghz;
-    }
-
-    QMap<int, float> permitivity2ghz() const {
-        return p2ghz;
-    }
-    QMap<int, float> conductivity2ghz() const {
-        return c2ghz;
-    }
-
-    QMap<int, float> permitivity5ghz() const {
-        return p5ghz;
-    }
-    QMap<int, float> conductivity5ghz() const {
-        return c5ghz;
-    }
 
 private:
-    QMap<int, float> p100mhz;
-    QMap<int, float> c100mhz;
+    QMap<int, float> p300mhz;
+    QMap<int, float> c300mhz;
+    QMap<int, float> lt300mhz;
+
+    QMap<int, float> p400mhz;
+    QMap<int, float> c400mhz;
+    QMap<int, float> lt400mhz;
 
     QMap<int, float> p500mhz;
     QMap<int, float> c500mhz;
+    QMap<int, float> lt500mhz;
 
-    QMap<int, float> p1ghz;
-    QMap<int, float> c1ghz;
+    QMap<int, float> p600mhz;
+    QMap<int, float> c600mhz;
+    QMap<int, float> lt600mhz;
 
-    QMap<int, float> p2ghz;
-    QMap<int, float> c2ghz;
+    QMap<int, float> p700mhz;
+    QMap<int, float> c700mhz;
+    QMap<int, float> lt700mhz;
 
-    QMap<int, float> p5ghz;
-    QMap<int, float> c5ghz;
+    QMap<int, float> p800mhz;
+    QMap<int, float> c800mhz;
+    QMap<int, float> lt800mhz;
+
+    QMap<int, float> p900mhz;
+    QMap<int, float> c900mhz;
+    QMap<int, float> lt900mhz;
+
+    QMap<int, float> p1000mhz;
+    QMap<int, float> c1000mhz;
+    QMap<int, float> lt1000mhz;
 };
 
 #endif // TISSUEPROPERTIES_H
