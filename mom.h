@@ -10,17 +10,18 @@ struct ImagingSpace {
     af::array x;
     af::array y; //corresponding positions of Er
     carray Er; //space that will be simulated
+    af::cfloat medium;
 
-    float minReal, maxReal;
-    float minImag, maxImag; //for imaging purposes
+    double minReal, maxReal;
+    double minImag, maxImag; //for imaging purposes
 
     carray initalGuess;
 
-    float dx {0}; //voxel size
-    float dy {0};
+    double dx {0}; //voxel size
+    double dy {0};
 
-    float lx {0}; //dimensions of space
-    float ly {0};
+    double lx {0}; //dimensions of space
+    double ly {0};
 
     std::vector<Position> probes; //probes positions to simulate
     std::vector<float> freqs; //frequencies to simulate
@@ -30,6 +31,7 @@ struct RunInfo {
     std::string name; //used for image names
     int iterations; //Iterations to run for
     float lambda;
+    af::Window *window;
 
 };
 
@@ -48,15 +50,15 @@ public:
 
 private:
 
-    void mom(int probenum, float freq, bool simulate, carray &Et, carray &Es);
-    void inverseBuilder(carray &Efunc, carray &C, float k);
+    void mom(int probenum, af::cfloat freq, bool simulate, carray &Er, carray &Et, carray &Es);
+    void inverseBuilder(carray &Efunc, carray &C, af::cfloat k);
 
     void simulateSpace();
     void iterateMom();
 
     void spaceToImage();
 
-    float wavenumber(float freq);
+    af::cfloat wavenumber(float freq, af::cfloat em);
     void pinv(carray &A, carray &Ai);
 
     RunInfo *info {0};

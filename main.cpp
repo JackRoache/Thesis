@@ -72,7 +72,7 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
     float * dataR = af::real(Er.a).host<float>();
     float * dataI = af::imag(Er.a).host<float>();
 
-    if (firstRun){
+//    if (firstRun){
         for (dim_t i = 0; i < Er.a.elements(); i++){
             comp num = comp(dataR[i], dataI[i]);
             minR = MIN(minR, num.real());
@@ -80,16 +80,16 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
             minI = MIN(minI, num.imag());
             maxI = MAX(maxI, num.imag());
         }
-        space->maxImag = maxI;
-        space->minImag = minI;
-        space->maxReal = maxR;
-        space->minReal = minR;
-    } else {
-        minR = space->minReal;
-        maxR = space->maxReal;
-        minI = space->minImag;
-        maxI = space->maxImag;
-    }
+//        space->maxImag = maxI;
+//        space->minImag = minI;
+//        space->maxReal = maxR;
+//        space->minReal = minR;
+//    } else {
+//        minR = space->minReal;
+//        maxR = space->maxReal;
+//        minI = space->minImag;
+//        maxI = space->maxImag;
+//    }
 
     QColor first("yellow");
     QColor second("blue");
@@ -116,6 +116,9 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
     //    af::freeHost(dataR);
     //    af::freeHost(dataI);
 
+    std::cout << "Real " << minR << " " << maxR << std::endl;
+    std::cout << "Imag " << minI << " " << maxI << std::endl;
+
     if (minI != maxI){
         QFile f1(name + QString("_imag.bmp"));
         f1.open(QIODevice::ReadWrite);
@@ -136,18 +139,25 @@ void iterationImage(RunInfo *info, ImagingSpace *space, carray &field, int itera
     int nx = space->lx / space->dx;
     int ny = space->ly / space->dy;
     surfToImage(space->x, space->y, field, name.str().c_str(), nx, ny, space, false);
+
+//    info->window->surface(space->x, space->y, af::imag(field.a), name.str().c_str());
 }
 
-void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace &space, QMap<int, float> &permitivity, QMap<int, float> &conductivity, af::cfloat medium, float freq)
+void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace &space, TissueProperties &props, float freq)
 {
     std::cout << "Generating Phantom" << std::endl;
     QByteArray data = file.getSlice(slice);
+    float omega = 2 * PI * freq;
     float x = space.lx / -2;
     float y = space.ly / -2;
-    int size = file.getFrameSize() / downsample /downsample;
+    int size = file.getFrameSize() / downsample / downsample;
     space.x = af::array(size);
     space.y = af::array(size);
     space.Er = carray(size);
+
+    QMap<int, float> permitivity = props.permitivity(freq);
+    QMap<int, float> conductivity = props.conductivity(freq);
+    QMap<int, float> lossTanget = props.lossTangent(freq);
 
     int index = 0;
     for (int i = 0; i < file.getWidth(); i++){
@@ -162,19 +172,21 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
             space.y(next) = y;
 
             int id = data[index];
-            float val = permitivity.value(id, -1);
-            Q_ASSERT(val != -1);
-            if (val == 1)
-                space.Er.r(next) = space.Er.r(next) + medium.real;
+            float er = permitivity.value(id, -1);
+            assert(er != -1);
+            if (er == 1)
+                space.Er.r(next) = space.Er.r(next) + space.medium.real;
             else
-                space.Er.r(next) = space.Er.r(next) + val;
+                space.Er.r(next) = space.Er.r(next) + er;
 
-            val = conductivity.value(id, -1);
-            Q_ASSERT(val != -1);
-            if (val == 0)
-                space.Er.i(next) = space.Er.i(next) + medium.imag;
+            float sigma = conductivity.value(id, -1);
+            float lt = lossTanget.value(id, -1);
+            assert(sigma != -1);
+            assert(lt != -1);
+            if (sigma == 0)
+                space.Er.i(next) = space.Er.i(next) + space.medium.imag;
             else
-                space.Er.i(next) = space.Er.i(next) + val;
+                space.Er.i(next) = space.Er.i(next) - sigma / omega + er * lt;
 
             y+=space.dy / downsample;
             index++;
@@ -183,14 +195,10 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
         x += space.dx / downsample;
     }
 
-    //    af::print("x", space.x);
-    //    af::print("y", space.y);
-
-    float omega = 2 * PI * freq;
-    space.Er.i = space.Er.i * -1 / omega;
+//    space.Er.i = space.Er.i /** -1*/ / omega;
     space.Er.refresh();
     space.Er.a = space.Er.a / (downsample * downsample); //correct for downsampling
-    space.Er.a = space.Er.a / medium;
+    space.Er.a = space.Er.a / space.medium;
     std::cout << "Finished Generating Phantom" << std::endl;
 }
 
@@ -218,7 +226,7 @@ void runBim(ImagingSpace &space, RunInfo &info)
     QString initialGuess = QString(info.name.c_str()) + QString("/Guess");
     surfToImage(space.x, space.y, space.Er, startName.toUtf8().data(), nx, ny, &space, true);
     surfToImage(space.x, space.y, space.initalGuess, initialGuess.toUtf8().data(), nx, ny, &space, false);
-    std::cout << "Start BIM" << std::endl;
+    std::cout << "Start BIM " << info.name << std::endl;
     MOM mom;
     mom.setCallBack(iterationImage);
     mom.setImagingSpace(&space);
@@ -228,37 +236,36 @@ void runBim(ImagingSpace &space, RunInfo &info)
     surfToImage(space.x, space.y, space.Er, endName.toUtf8().data(), nx, ny, &space, false);
 }
 
-void simple_phantom(int freq)
+void simple_phantom(int freq, float lambda, af::Window &window)
 {
-    af::cfloat medium(40, 0);
-
     ImagingSpace space;
     space.dx = 1.1e-3 * 4;
     space.dy = 1.1e-3 * 4;
     space.lx = space.dx * 256 / 4;
     space.ly = space.dy * 256 / 4;
     space.freqs.push_back(freq);
+    space.medium = af::cfloat(40,0);
 
     RunInfo info;
-    info.iterations = 10;
-    info.lambda = 0.1;
+    info.iterations = 2;
+    info.lambda = lambda;
+    info.window = &window;
 
     PhantomFile phant("det_head_u2.med", 256, 256, 128);
     TissueProperties props;
 
-    QMap<int, float> perm = props.permitivity(freq);
-    QMap<int, float> cond = props.conductivity(freq);
+    generatePhantom(phant, 30, 4, space, props, freq);
 
-    generatePhantom(phant, 64, 4, space, perm, cond, medium, freq);
-
-    generateProbes(space, 0.2, 0.2, 36);
+    generateProbes(space, 0.14, 0.14, 36);
     carray phantom = space.Er;
 
     //simple initial guess
     space.initalGuess.r = af::constant(1, space.Er.a.dims());
     space.initalGuess.i = af::constant(0, space.Er.a.dims());
     space.initalGuess.refresh();
-    info.name = "Phantom Constant";
+    std::stringstream ss;
+    ss << "Phantom Constant " << freq << "hz " << lambda << " lambda";
+    info.name = ss.str();
     runBim(space, info);
 
 
@@ -275,10 +282,10 @@ void simple_phantom(int freq)
             float r = std::sqrt(x*x + y*y);
 
             if (r < 0.07){
-                space.initalGuess.r(index) = 50;
+                space.initalGuess.r(index) = 1;
                 space.initalGuess.i(index) = 0;
             } else {
-                space.initalGuess.r(index) = 10;
+                space.initalGuess.r(index) = 0;
                 space.initalGuess.i(index) = 0;
             }
             index++;
@@ -287,14 +294,69 @@ void simple_phantom(int freq)
 
     space.Er = phantom;
     space.initalGuess.refresh();
-    info.name = "Phantom Round";
+    ss.clear();
+    ss << "Phantom Round " << freq << "hz " << lambda <<" lambda";
+    info.name = ss.str();
     runBim(space, info);
 
 
     //Perfect guess
     space.Er = phantom;
     space.initalGuess = phantom;
-    info.name = "Phantom Perfect";
+    ss.clear();
+    ss << "Phantom Perfect "<< freq << "hz " << lambda <<" lambda";
+    info.name = ss.str();
+    runBim(space, info);
+}
+
+void very_simple()
+{
+    ImagingSpace space;
+    space.dx = 5e-3;
+    space.dy = 5e-3;
+    space.lx = 1e-3 * 75;
+    space.ly = 1e-3 * 75;
+    space.freqs.push_back(5e9);
+    space.medium = af::cfloat(1,0);
+
+    RunInfo info;
+    info.iterations = 5;
+    info.lambda = 0.1;
+    info.name  = "very simple";
+    int nx = space.lx / space.dx;
+    int ny = space.ly / space.dy;
+
+    space.x = af::array(nx * ny);
+    space.y = af::array(nx * ny);
+    space.Er.resize(nx * ny);
+
+    std::cout << nx << " " << ny << std::endl;
+
+    int index = 0;
+    for (int i = 0; i < nx; i++) {
+        for (int j = 0; j < ny; j++){
+            double Xc = space.dx/2 + i * space.dx - space.lx / 2;
+            double Yc = space.dy/2 + j * space.dy - space.ly / 2;
+            space.x(index) = Xc;
+            space.y(index) = Yc;
+
+            if ((Xc > -0.02) && (Xc < 0.02) && (Yc > -0.02) && (Yc < 0.02)){
+                space.Er.r(index) = 1.5;
+                space.Er.i(index) = -0.1;
+            } else {
+                space.Er.r(index) = 1;
+                space.Er.i(index) = 0;
+            }
+            index++;
+        }
+    }
+    assert(index == nx * ny);
+    space.Er.refresh();
+    af::print("Er", space.Er.a);
+    generateProbes(space, 0.05, 0.05, 12);
+    space.initalGuess.r = af::constant(1.0, space.Er.a.dims());
+    space.initalGuess.i = af::constant(0.0, space.Er.a.dims());
+    space.initalGuess.refresh();
     runBim(space, info);
 }
 
@@ -303,92 +365,37 @@ int main()
     af::setBackend(AF_BACKEND_OPENCL);
     af::info();
     std::cout << "Current Device " << af::getDevice() << std::endl;
+    af::array dummy(1);
+    initKernels(dummy);
 
-    carray Er(CNX * CNY);
+    af::Window window(512, 512, "Window!");
 
-    af::array cx(CNX * CNY);
-    af::array cy(CNX * CNY);
-    carray Et, Es;
+//    very_simple();
 
-    std::vector<Position> probes;
-    std::vector<float> freqs = {5e9};
+    simple_phantom(500000000, 0.1, window);
+    simple_phantom(500000000, 0.01, window);
+    simple_phantom(500000000, 0, window);
 
-    initKernels(cx);
+    //    simple_phantom(300000000, 0.1);
+    //    simple_phantom(400000000, 0.1);
+    //    simple_phantom(600000000, 0.1);
+    //    simple_phantom(700000000, 0.1);
+    //    simple_phantom(800000000, 0.1);
+    //    simple_phantom(900000000, 0.1);
+    //    simple_phantom(1000000000, 0.1);
 
-    simple_phantom(600000000);
+
+//    simple_phantom(500000000, 0.2);
+//    simple_phantom(600000000, 0.2);
+
+//    simple_phantom(500000000, 0.5);
+//    simple_phantom(600000000, 0.5);
+
+//    simple_phantom(500000000, 0.01);
+//    simple_phantom(600000000, 0.01);
+
     return 0;
-
-    //    Build up an imaging space
-    int index = 0;
-    for (int i = 0; i <CNX; ++i){
-        for (int j = 0; j < CNY; ++j){
-            float CX = CDX2 + i* CDX-CLX/2;
-            float CY = CDY2 + j * CDY - CLY/2;
-
-            cx(index) = CX;
-            cy(index) = CY;
-
-            if ((CX > -0.02)&& (CX < 0.02) && (CY > -0.02)&&(CY < 0.02)){
-                Er.r(index) = 1.5 ;
-                Er.i(index) = -0.1;
-            } else {
-                Er.r(index) = 1;
-                Er.i(index) = 0;
-            }
-            index++;
-        }
-    }
-
-    //Generate Probes
-    int numProbes = 360 / RX_ANGLE;
-
-    for (int i = 0; i < numProbes; i++){
-        Position p;
-        p.x = RX_XRADIUS * sin(i * RX_ANGLE * PI / 180);
-        p.y = RX_YRADIUS * cos(i * RX_ANGLE * PI / 180);
-        probes.push_back(p);
-    }
-    Er.refresh();
-
-    float _t[] = {1,2,3};
-    af::array t(3, 1, _t);
-    af::print("t", t);
-    af::print("tiled", af::tile(t, 1, 3));
-    af::print("transposed", af::tile(af::transpose(t), 3, 1));
-    af::print("operation", af::tile(af::transpose(t), 3, 1) - af::tile(t, 1, 3));
-
-    //init mom structs
-
-    ImagingSpace space;
-    space.x = cx;
-    space.y = cy;
-    space.Er = Er;
-    space.dx = CDX;
-    space.dy = CDY;
-    space.lx = CLX;
-    space.ly - CLY;
-    space.probes = probes;
-    space.freqs = freqs;
-
-    RunInfo info;
-    info.name = "Basic";
-    info.iterations = 3;
-
-//    surfToImage(cx, cy, space.Er, "Start", space.dx, space.dy);
-//    MOM mom;
-
-//    mom.setImagingSpace(&space);
-//    mom.setIterations(&info);
-
-//    mom.run();
-//    surfToImage(cx, cy, space.Er, "Done", space.dx, space.dy);
-
-    return 1;
 }
-
-
-
-
 
 
 /*
