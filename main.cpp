@@ -160,19 +160,22 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
     float omega = 2 * PI * freq;
     float x = space.lx / -2;
     float y = space.ly / -2;
-    int size = file.getFrameSize() / downsample / downsample;
+    int size = (file.getWidth() - 80) * (file.getHeight() - 80) / downsample / downsample;
     space.x = af::array(size);
     space.y = af::array(size);
     space.Er = carray(size);
 
-    int index = 0;
-    for (int i = 0; i < file.getWidth(); i++){
-        for (int j = 0; j < file.getHeight(); j++){\
+    //downsize to 44 x 44 array size
+
+
+    for (int i = 40; i < file.getWidth() - 40; i++){
+        for (int j = 40; j < file.getHeight() - 40; j++){\
             //relying on int rounding to get this right
-            int h1 = i / downsample;
-            int h2 = file.getWidth() / downsample;
-            int l1 = j / downsample;
+            int h1 = i / downsample - 10;
+            int h2 = (file.getWidth() - 80) / downsample;
+            int l1 = j / downsample - 10;
             int next = h1 * h2 + l1;
+            int index = i * file.getWidth() + j;
 
             space.x(next) = x;
             space.y(next) = y;
@@ -389,13 +392,11 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
 
 
             y+=space.dy / downsample;
-            index++;
         }
         y = space.ly / -2;
         x += space.dx / downsample;
     }
 
-    //    space.Er.i = space.Er.i /** -1*/ / omega;
     space.Er.refresh();
     space.Er.a = space.Er.a / (downsample * downsample); //correct for downsampling
     space.Er.a = space.Er.a / space.medium;
@@ -441,8 +442,8 @@ void simple_phantom(int freq, double lambda, af::Window &window)
     ImagingSpace space;
     space.dx = 1.1e-3 * 4;
     space.dy = 1.1e-3 * 4;
-    space.lx = space.dx * 256 / 4;
-    space.ly = space.dy * 256 / 4;
+    space.lx = space.dx * (256 - 80) / 4;
+    space.ly = space.dy * (256 - 80) / 4;
     space.freqs.push_back(freq);
     space.medium = af::cfloat(40,0);
 
@@ -456,7 +457,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
 
     generatePhantom(phant, 30, 4, space, props, freq);
 
-    generateProbes(space, 0.12, 0.12, 36);
+    generateProbes(space, 0.11, 0.10, 36);
     carray phantom = space.Er;
 
     //simple initial guess
@@ -468,7 +469,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
         ss << "Phantom Constant " << freq << "hz " << lambda << " lambda";
         info.name = ss.str();
     }
-    runBim(space, info);
+//    runBim(space, info);
 
 
 
@@ -502,7 +503,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
         ss << "Phantom Round " << freq << "hz " << lambda <<" lambda";
         info.name = ss.str();
     }
-    runBim(space, info);
+//    runBim(space, info);
 
 
     //Perfect guess
@@ -579,19 +580,19 @@ int main()
 
     //    very_simple();
 
-    simple_phantom(500000000, 0.07, window);
-    simple_phantom(500000000, 0.08, window);
-    simple_phantom(500000000, 0.09, window);
-    simple_phantom(500000000, 0.11, window);
-    simple_phantom(500000000, 0.12, window);
-    simple_phantom(500000000, 0.13, window);
+//    simple_phantom(500000000, 0.07, window);
+//    simple_phantom(500000000, 0.08, window);
+//    simple_phantom(500000000, 0.09, window);
+//    simple_phantom(500000000, 0.11, window);
+//    simple_phantom(500000000, 0.12, window);
+//    simple_phantom(500000000, 0.13, window);
 
-//    simple_phantom(500000000, 0.1, window);
-//    simple_phantom(500000000, 0.01, window);
-//    simple_phantom(500000000, 0, window);
-//    simple_phantom(500000000, 0.2, window);
-//    simple_phantom(500000000, 0.5, window);
-//    simple_phantom(500000000, 1, window);
+    simple_phantom(500000000, 0.1, window);
+    simple_phantom(500000000, 0.01, window);
+    simple_phantom(500000000, 0, window);
+    simple_phantom(500000000, 0.2, window);
+    simple_phantom(500000000, 0.5, window);
+    simple_phantom(500000000, 1, window);
 
     simple_phantom(300000000, 0.1, window);
     simple_phantom(400000000, 0.1, window);
