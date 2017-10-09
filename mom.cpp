@@ -243,14 +243,17 @@ void MOM::iterateMom()
     Ereg.a(af::seq(L, L+N-1)) = 0;
 
     /* Solve the system
-     * BO^{'}=E_{scat}
+     * BO'=E_{scat}
      */
     pinv(Ereg, Inverse);
 
     Treg.a = af::matmul(Inverse.a, B);
 
     af::cfloat n(1,0);
-    space->Er.a = af::transpose(Treg.a + n, true) ; //correct for offset and apply complex conjugate / transpose
+//    space->Er.a = af::transpose(Treg.a + n, true) ; //correct for offset and apply complex conjugate / transpose
+    space->Er.i = af::imag(af::transpose(Treg.a + n, true));
+    space->Er.r = af::real(af::transpose(Treg.a + n, true));
+    space->Er.refresh();
 //    space->Er.a = af::transpose(Treg.a) + n; //correct for offset
 }
 
