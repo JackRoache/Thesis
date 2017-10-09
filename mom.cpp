@@ -221,39 +221,15 @@ void MOM::iterateMom()
         B = af::join(0, B, matrices[i].a);
     }
 
-    float lambda = info->lambda;
-
-    int L = B.col(0).elements(); //rows
-    int N = B.row(0).elements(); //columns
-    B2.resize(N,N);
-
-    B2.i = af::constant(0, B2.i.dims());
-    B2.r = af::constant(0, B2.r.dims());
-
-    //set diaganol to lambda
-    for (int i = 0; i < N; i++)
-        B2.r(i,i) = lambda;
-
-    B2.refresh();
-    B = af::join(0, B, B2.a);
-
-    L = Ez.a.elements();
-    Ereg.resize(N + L);
-    Ereg.a(af::seq(0, L-1)) = Ez.a;
-    Ereg.a(af::seq(L, L+N-1)) = 0;
+    Ereg.a = Ez.a;
 
     /* Solve the system
-     * BO'=E_{scat}
+     * BO^{'}=E_{scat}
      */
-    pinv(Ereg, Inverse);
-
-    Treg.a = af::matmul(Inverse.a, B);
+    least_squares(Ereg.a, B, Treg.a, info->lambda);
 
     af::cfloat n(1,0);
-//    space->Er.a = af::transpose(Treg.a + n, true) ; //correct for offset and apply complex conjugate / transpose
-    space->Er.i = af::imag(af::transpose(Treg.a + n, true));
-    space->Er.r = af::real(af::transpose(Treg.a + n, true));
-    space->Er.refresh();
+    space->Er.a = af::transpose(Treg.a + n, true) ; //correct for offset and apply complex conjugate / transpose
 //    space->Er.a = af::transpose(Treg.a) + n; //correct for offset
 }
 
@@ -278,6 +254,25 @@ void MOM::pinv(carray &A, carray &Ai)
 //    }
 
     Ai.a = af::matmul(vt.H(), s, u.H());
+}
+
+void MOM::least_squares(af::array &A, af::array &b, af::array &x, double alpha)
+{
+    int minDim = min(A.row(0).elements(), A.col(0).elements());
+
+    af::array u, vt, s, d;
+    af::svd(u, s, vt, A);
+
+    //remove trailing zeroes
+    u = u(af::span, af::seq(minDim));
+    vt = vt(af::seq(minDim), af::span);
+
+    //D_{ii} = sigma_i / (sigma_i^2 + alpha^2)
+    d = s / (af::pow(s,2) + alpha * alpha);
+    d = af::diag(d, 0, false).as(c32);
+
+    u = af::transpose(u, false);
+    x = af::matmul(vt.H(), d, u, b);
 }
 
 void MOM::spaceToImage()

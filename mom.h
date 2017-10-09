@@ -60,6 +60,7 @@ private:
 
     af::cfloat wavenumber(float freq, af::cfloat em);
     void pinv(carray &A, carray &Ai);
+    void least_squares(af::array &A, af::array &b, af::array &x, double alpha);
 
     RunInfo *info {0};
     ImagingSpace *space {0};

@@ -24,7 +24,6 @@
 #include "phantomfile.h"
 #include "tissueproperties.h"
 
-#define CE0     (8.854e-12)
 
 #define CLX     0.20
 #define CLY     CLX
@@ -101,11 +100,10 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
     map << first << second << third;
 
     for (dim_t i = 0; i < Er.a.elements(); i++){
-        comp num = comp(dataR[i], dataI[i]);
         QColor im,re;
 
         if (minR != maxR){
-            float sr = (num.real() - minR) / (maxR - minR);
+            float sr = (dataR[i] - minR) / (maxR - minR);
             sr = min(max(0.0, sr), 1.0);
             int lower = sr * map.size();
             lower = min(max(lower, 0), map.size()-2);
@@ -114,7 +112,7 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
         }
 
         if (minI != maxI){
-            float si =  (num.imag() - minI) / (maxI - minI);
+            float si =  (dataI[i] - minI) / (maxI - minI);
             si = min(max(0.0, si), 1.0);
             int lower = si * map.size();
             lower = min(max(lower, 0), map.size()-2);
@@ -123,8 +121,8 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
         }
     }
 
-    //    af::freeHost(dataR);
-    //    af::freeHost(dataI);
+    af::freeHost(dataR);
+    af::freeHost(dataI);
 
     std::cout << "Real " << minR << " " << maxR << std::endl;
     std::cout << "Imag " << minI << " " << maxI << std::endl;
@@ -166,6 +164,9 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
     space.Er = carray(size);
 
     //downsize to 44 x 44 array size
+    QMap<int, float> permitivity = props.permitivity(freq);
+    QMap<int, float> conductivity = props.conductivity(freq);
+    QMap<int, float> lossTanget = props.lossTangent(freq);
 
 
     for (int i = 40; i < file.getWidth() - 40; i++){
@@ -180,223 +181,31 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
             space.x(next) = x;
             space.y(next) = y;
 
-            double Einf =0;
-            double Es_cole[4] = {0};
-            double Tau[4] = {0};
-            double alpha[4] = {0};
-            double Cond_cole = 0;
-            int K = 0;
-
             int id = data[index];
-            switch (id) {
-            case 0:
-                Einf = space.medium.real;
-                Es_cole[0] = 0;
-                Tau[0] = 0;
-                Tau[1] = 1;
-                alpha[0] =0;
-                Cond_cole = 0;
-                K  = 1;
-                break;
+            float er = permitivity.value(id, -1);
+            assert(er != -1);
+            if (er == 1)
+                space.Er.r(next) = space.Er.r(next) + space.medium.real;
+            else
+                space.Er.r(next) = space.Er.r(next) + er;
 
-                //Skin
-            case 1:
-                Einf = 4;
-                Es_cole[0] = 32;
-                Es_cole[1] = 1100;
-                Tau[0] = 7.23e-12;
-                Tau[1] = 32.48e-9;
-                alpha[0] = 0;
-                alpha[1] = 0.2;
-                Cond_cole = 0.0002;
-                K  = 2;
-                break;
-
-                //Skull
-            case 4:
-            case 5:
-            case 9:
-            case 70:
-            case 71:
-            case 76:
-            case 81:
-            case 100:
-            case 102:
-            case 125:
-                Einf = 4;
-                Es_cole[0] = 8;
-                Es_cole[1] = 4;
-                Tau[0] = 17e-12;
-                Tau[1] = 0.46e-9;
-                alpha[0] = 0;
-                alpha[1] = 0;
-                Cond_cole = 0.065;
-                K  = 2;
-                break;
-
-                // Fat
-            case 22:
-            case 98:
-                Einf  = 3;
-                Es_cole[0] = 1.42;
-                Es_cole[1] = 1.87;
-                Tau[0] = 13e-12;
-                Tau[1] = 0.651e-9;
-                alpha[0] =0;
-                alpha[1] = 0;
-                Cond_cole = 0.026;
-                K = 2;
-                break;
-
-                //Dura
-            case 75:
-            case 113:
-                Einf  = 4;
-                Es_cole[0] = 40;
-                Es_cole[1] = 200;
-                Es_cole[2] = 1e4;
-                Es_cole[3] = 1e6;
-                Tau[0] =7.958e-12;
-                Tau[1]=7.958e-9;
-                Tau[2]=159.15e-6;
-                Tau[3]=15.915e-3;
-                alpha[0] =0.15;
-                alpha[1] =0.1;
-                alpha[2] = 0.2;
-                alpha[3] =0;
-                Cond_cole = 0.5;
-                K = 4;
-                break;
-
-                //Brain (Gray Matter)
-            case 118:
-            case 101:
-            case 89:
-            case 120:
-            case 96:
-            case 103:
-            case 95:
-            case 117:
-            case 124:
-            case 105:
-            case 112:
-            case 114:
-            case 109:
-            case 99:
-                Einf = 1;
-                Es_cole[0] =49;
-                Es_cole[1] = 55;
-                Tau[0] = 10e-12;
-                Tau[1] = 1.3e-9;
-                Cond_cole = 0.5;
-                alpha[0] =0;
-                alpha[1] = 0;
-                K  = 2;
-                break;
-                //White Matter
-            case 111:
-            case 107:
-            case 108:
-            case 83:
-                Einf = 8;
-                Es_cole[0] = 29;
-                Es_cole[1] = 26;
-                Tau[0] = 13e-12;
-                Tau[1] = 0.94e-9;
-                alpha[0] = 0;
-                alpha[1] = 0;
-                Cond_cole = 0.3;
-                K = 2;
-                break;
-                //CSF
-            case 122:
-            case 2:
-            case 115:
-            case 123:
-            case 92:
-                Einf = 1;
-                Es_cole[0] = 66;
-                Es_cole[1] = 17;
-                Tau[0] =6.9e-12;
-                Tau[1] = 1.7e-9;
-                alpha[0] =0;
-                alpha[1] = 0;
-                Cond_cole = 2.2;
-                K = 2;
-                break;
-                //Blood
-            case 23:
-            case 84:
-                Einf = 8;
-                Es_cole[0] = 47;
-                Es_cole[1] = 23;
-                Tau[0] =10.8e-12;
-                Tau[1] = 1.2e-9;
-                alpha[0] =0;
-                alpha[1] = 0;
-                Cond_cole = 1.5;
-                K = 2;
-                break;
-                //            case 9:
-                //                Einf = 4;
-                //                Es_cole[0] =50;
-                //                Es_cole[1] = 7000;
-                //                Es_cole[2] = 1.2e6;
-                //                Es_cole[3] = 2.5e7;
-                //                Tau[0] = 7.234e-12;
-                //                Tau[1] = 353.678e-9;
-                //                Tau[2] = 313.310e-6;
-                //                Tau[3] = 2.264e-3;
-                //                alpha[0] = 0.1;
-                //                alpha[1] = 0.1;
-                //                alpha[2] = 0.1;
-                //                alpha[3] = 0;
-                //                Cond_cole = 0.2;
-                //                K =4 ;
-                //                break
-
-                //Bone Marrow
-            case 26:
-                Einf = 2.5;
-                Es_cole[0] = 9;
-                Es_cole[1] = 80;
-                Es_cole[2] = 1e4;
-                Es_cole[3] = 2e6;
-                Tau[0] = 14.469e-12;
-                Tau[1] = 15.91e-9;
-                Tau[2] = 1591.549e-6;
-                Tau[3] = 15.915e-3;
-                alpha[0] = 0.2;
-                alpha[1] = 0.1;
-                alpha[2] = 0.1;
-                alpha[3] = 0.1;
-                Cond_cole = 0.1;
-                K =4 ;
-                break;
-
-            default:
-                std::cout << "ID " << id << std::endl;
-                assert(false);
-            }
-
-            std::complex<double> temp = 0;
-            std::complex<double> cond = 0;
-            std::complex<double> imag(0,1);
-            for (int j = 0; j < K; j++){
-                temp += Es_cole[j] / (1.0 + omega * std::pow(Tau[j], 1-alpha[j]) * imag);
-            }
-
-            cond = Cond_cole / (omega * CE0 * imag);
-            space.Er.r(next) += Einf + temp.real() + cond.real();
-            space.Er.i(next) += temp.imag() + cond.imag();
-
+            float sigma = conductivity.value(id, -1);
+            float lt = lossTanget.value(id, -1);
+            assert(sigma != -1);
+            assert(lt != -1);
+            if (sigma == 0)
+                space.Er.i(next) = space.Er.i(next) + space.medium.imag;
+            else
+                space.Er.i(next) = space.Er.i(next) - sigma / omega + er * lt;
 
             y+=space.dy / downsample;
+            index++;
         }
         y = space.ly / -2;
         x += space.dx / downsample;
     }
 
+    //    space.Er.i = space.Er.i /** -1*/ / omega;
     space.Er.refresh();
     space.Er.a = space.Er.a / (downsample * downsample); //correct for downsampling
     space.Er.a = space.Er.a / space.medium;
@@ -457,7 +266,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
 
     generatePhantom(phant, 30, 4, space, props, freq);
 
-    generateProbes(space, 0.11, 0.10, 36);
+    generateProbes(space, 0.12, 0.12, 36);
     carray phantom = space.Er;
 
     //simple initial guess
@@ -469,7 +278,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
         ss << "Phantom Constant " << freq << "hz " << lambda << " lambda";
         info.name = ss.str();
     }
-//    runBim(space, info);
+    runBim(space, info);
 
 
 
@@ -503,7 +312,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
         ss << "Phantom Round " << freq << "hz " << lambda <<" lambda";
         info.name = ss.str();
     }
-//    runBim(space, info);
+    runBim(space, info);
 
 
     //Perfect guess
@@ -578,7 +387,7 @@ int main()
 
     af::Window window(512, 512, "Window!");
 
-    //    very_simple();
+        very_simple();
 
 //    simple_phantom(500000000, 0.07, window);
 //    simple_phantom(500000000, 0.08, window);
@@ -588,11 +397,11 @@ int main()
 //    simple_phantom(500000000, 0.13, window);
 
     simple_phantom(500000000, 0.1, window);
-    simple_phantom(500000000, 0.01, window);
-    simple_phantom(500000000, 0, window);
-    simple_phantom(500000000, 0.2, window);
-    simple_phantom(500000000, 0.5, window);
-    simple_phantom(500000000, 1, window);
+//    simple_phantom(500000000, 0.01, window);
+//    simple_phantom(500000000, 0, window);
+//    simple_phantom(500000000, 0.2, window);
+//    simple_phantom(500000000, 0.5, window);
+//    simple_phantom(500000000, 1, window);
 
     simple_phantom(300000000, 0.1, window);
     simple_phantom(400000000, 0.1, window);
@@ -603,14 +412,14 @@ int main()
     simple_phantom(1000000000, 0.1, window);
 
 
-    //    simple_phantom(500000000, 0.2);
-    //    simple_phantom(600000000, 0.2);
+    //        simple_phantom(500000000, 0.2);
+    //        simple_phantom(600000000, 0.2);
 
-    //    simple_phantom(500000000, 0.5);
-    //    simple_phantom(600000000, 0.5);
+    //        simple_phantom(500000000, 0.5);
+    //        simple_phantom(600000000, 0.5);
 
-    //    simple_phantom(500000000, 0.01);
-    //    simple_phantom(600000000, 0.01);
+    //        simple_phantom(500000000, 0.01);
+    //        simple_phantom(600000000, 0.01);
 
     return 0;
 }
