@@ -39,13 +39,13 @@ HEADERS += \
     tissueproperties.h \
     phantomfile.h
 
-#macx {
-#macx: LIBS += -L$$PWD/../../../../../usr/local/lib/ -laf.3.5.0
-#macx: LIBS += -framework OpenCL
+macx: QMAKE_MAC_SDK = macosx10.13
+macx: LIBS += -L$$PWD/../../../../../usr/local/lib/ -laf.3.5.0
+macx: LIBS += -framework OpenCL
 
-#INCLUDEPATH += /usr/local/include
-#DEPENDPATH += /usr/local/include
-#}
+INCLUDEPATH += /usr/local/include
+DEPENDPATH += /usr/local/include
+
 
 
 
@@ -54,12 +54,12 @@ DISTFILES += \
 
 
 
-win32: LIBS += -L$$PWD/'../../Program Files/ArrayFire/v3/lib/' -laf
+#win32: LIBS += -L$$PWD/'../../Program Files/ArrayFire/v3/lib/' -laf
 
-INCLUDEPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
-DEPENDPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
+#INCLUDEPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
+#DEPENDPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
 
-win32: LIBS += -L$$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/lib/x86_64/' -lOpenCL
+#win32: LIBS += -L$$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/lib/x86_64/' -lOpenCL
 
-INCLUDEPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'
-DEPENDPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'
+#INCLUDEPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'
+#DEPENDPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'

@@ -105,19 +105,31 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
         QColor im,re;
 
         if (minR != maxR){
-            float sr = (num.real() - minR) / (maxR - minR);
+            double sr = (num.real() - minR) / (maxR - minR);
+#ifdef Q_OS_MAC
+            sr = std::min(std::max(0.0, sr), 1.0);
+            int lower = sr * map.size();
+            lower = std::min(std::max(lower, 0), map.size()-2);
+#else
             sr = min(max(0.0, sr), 1.0);
             int lower = sr * map.size();
             lower = min(max(lower, 0), map.size()-2);
+#endif
             re = interpolate(map[lower], map[lower+1], sr);
             *dReal++ = re.rgb();
         }
 
         if (minI != maxI){
-            float si =  (num.imag() - minI) / (maxI - minI);
+            double si =  (num.imag() - minI) / (maxI - minI);
+#ifdef Q_OS_MAC
+            si = std::min(std::max(0.0, si), 1.0);
+            int lower = si * map.size();
+            lower = std::min(std::max(lower, 0), map.size()-2);
+#else
             si = min(max(0.0, si), 1.0);
             int lower = si * map.size();
             lower = min(max(lower, 0), map.size()-2);
+#endif
             im = interpolate(map[lower], map[lower+1], si);
             *dImag++ = im.rgb();
         }
@@ -155,12 +167,13 @@ void iterationImage(RunInfo *info, ImagingSpace *space, carray &field, int itera
 
 void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace &space, TissueProperties &props, float freq)
 {
+    int border = 40;
     std::cout << "Generating Phantom" << std::endl;
     QByteArray data = file.getSlice(slice);
     float omega = 2 * PI * freq;
     float x = space.lx / -2;
     float y = space.ly / -2;
-    int size = (file.getWidth() - 80) * (file.getHeight() - 80) / downsample / downsample;
+    int size = (file.getWidth() - 2 * border) * (file.getHeight() - 2 * border) / downsample / downsample;
     space.x = af::array(size);
     space.y = af::array(size);
     space.Er = carray(size);
@@ -168,12 +181,12 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
     //downsize to 44 x 44 array size
 
 
-    for (int i = 40; i < file.getWidth() - 40; i++){
-        for (int j = 40; j < file.getHeight() - 40; j++){\
+    for (int i = border; i < file.getWidth() - border; i++){
+        for (int j = border; j < file.getHeight() - border; j++){\
             //relying on int rounding to get this right
-            int h1 = i / downsample - 10;
-            int h2 = (file.getWidth() - 80) / downsample;
-            int l1 = j / downsample - 10;
+            int h1 = (i - border) / downsample;
+            int h2 = (file.getWidth() - 2 * border) / downsample;
+            int l1 = (j - border) / downsample;
             int next = h1 * h2 + l1;
             int index = i * file.getWidth() + j;
 
@@ -188,6 +201,7 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
             int K = 0;
 
             int id = data[index];
+            //cole cole model
             switch (id) {
             case 0:
                 Einf = space.medium.real;
@@ -390,7 +404,6 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
             space.Er.r(next) += Einf + temp.real() + cond.real();
             space.Er.i(next) += temp.imag() + cond.imag();
 
-
             y+=space.dy / downsample;
         }
         y = space.ly / -2;
@@ -426,7 +439,7 @@ void runBim(ImagingSpace &space, RunInfo &info)
     QString endName = QString(info.name.c_str()) + QString("/Done");
     QString initialGuess = QString(info.name.c_str()) + QString("/Guess");
     surfToImage(space.x, space.y, space.Er, startName.toUtf8().data(), nx, ny, &space, true);
-    surfToImage(space.x, space.y, space.initalGuess, initialGuess.toUtf8().data(), nx, ny, &space, false);
+//    surfToImage(space.x, space.y, space.initalGuess, initialGuess.toUtf8().data(), nx, ny, &space, false);
     std::cout << "Start BIM " << info.name << std::endl;
     MOM mom;
     mom.setCallBack(iterationImage);
@@ -434,16 +447,19 @@ void runBim(ImagingSpace &space, RunInfo &info)
     mom.setIterations(&info);
 
     mom.run();
-    surfToImage(space.x, space.y, space.Er, endName.toUtf8().data(), nx, ny, &space, false);
+//    surfToImage(space.x, space.y, space.Er, endName.toUtf8().data(), nx, ny, &space, false);
 }
 
 void simple_phantom(int freq, double lambda, af::Window &window)
 {
+    int downsample = 2;
+    int border = 40;
+
     ImagingSpace space;
-    space.dx = 1.1e-3 * 4;
-    space.dy = 1.1e-3 * 4;
-    space.lx = space.dx * (256 - 80) / 4;
-    space.ly = space.dy * (256 - 80) / 4;
+    space.dx = 1.1e-3 * downsample;
+    space.dy = 1.1e-3 * downsample;
+    space.lx = space.dx * (256 - 2 * border) / downsample;
+    space.ly = space.dy * (256 - 2 * border) / downsample;
     space.freqs.push_back(freq);
     space.medium = af::cfloat(40,0);
 
@@ -455,9 +471,9 @@ void simple_phantom(int freq, double lambda, af::Window &window)
     PhantomFile phant("det_head_u2.med", 256, 256, 128);
     TissueProperties props;
 
-    generatePhantom(phant, 30, 4, space, props, freq);
+    generatePhantom(phant, 30, downsample, space, props, freq);
 
-    generateProbes(space, 0.11, 0.10, 36);
+    generateProbes(space, 0.11, 0.10, 48);
     carray phantom = space.Er;
 
     //simple initial guess
@@ -469,7 +485,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
         ss << "Phantom Constant " << freq << "hz " << lambda << " lambda";
         info.name = ss.str();
     }
-//    runBim(space, info);
+    runBim(space, info);
 
 
 
@@ -514,7 +530,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
         ss << "Phantom Perfect "<< freq << "hz " << lambda <<" lambda";
         info.name = ss.str();
     }
-    runBim(space, info);
+//    runBim(space, info);
 }
 
 void very_simple()
@@ -588,6 +604,7 @@ int main()
 //    simple_phantom(500000000, 0.13, window);
 
     simple_phantom(500000000, 0.1, window);
+    return 0;
     simple_phantom(500000000, 0.01, window);
     simple_phantom(500000000, 0, window);
     simple_phantom(500000000, 0.2, window);

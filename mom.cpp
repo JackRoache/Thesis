@@ -39,7 +39,31 @@ void MOM::run()
 {
     simulateSpace();
 
-    space->Er = space->initalGuess;
+    //downsize area again
+    space->dx *= 2;
+    space->dy *= 2;
+    int nx = space->lx / space->dx;
+    int ny = space->ly / space->dy;
+    double x = -space->lx / 2 + space->dx / 2;
+    double y = -space->ly / 2 + space->dy / 2;
+
+    space->x = af::array(nx * ny);
+    space->y = af::array(nx * ny);
+    int index = 0;
+    for (int i = 0 ; i < nx; i++){
+        for (int j = 0; j < ny; j++){
+            space->x(index) = x;
+            space->y(index) = y;
+            y += space->dy;
+            index++;
+        }
+        y = -space->ly / 2 + space->dy / 2;
+        x += space->dx;
+    }
+
+    space->Er.r = af::constant(1.0, space->x.dims());
+    space->Er.i = af::constant(0.0, space->x.dims());
+    space->Er.refresh();
 
     for (int i = 0; i < info->iterations; i++){
         std::cout << "Iteration " << i + 1  << std::endl;
@@ -77,7 +101,7 @@ void MOM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et,
     float bj = bessj(1, k.real*a);
 
     //Diaganol of matrix to solve
-    af::cfloat D = af::cfloat(0,0.5)*(PI*k.real*a* af::cfloat(bessj(1, a*k.real), -1 * bessy(1, a*k.real)) - af::cfloat(0,2));
+    af::cfloat D = af::cfloat(0,0.5)*PI*k.real*a* af::cfloat(bessj(1, a*k.real), -1 * bessy(1, a*k.real)) + 2;
     d = D * (Er_n) + 1;
 
     //Bulk of matrix to solve
@@ -174,12 +198,13 @@ void MOM::inverseBuilder(carray &Efunc, carray &B, af::cfloat k)
 void MOM::simulateSpace()
 {
     Ez.resize(space->probes.size() * space->probes.size() * space->freqs.size());
-    assert(space->initalGuess.a.elements() == space->Er.a.elements());
+//    assert(space->initalGuess.a.elements() == space->Er.a.elements());
     int probesSize = space->probes.size();
     for (size_t l = 0; l < space->freqs.size(); l++){
         af::cfloat k = wavenumber(space->freqs[l], space->medium);
         for (size_t i = 0; i < space->probes.size(); i++){
             carray Et, Es;
+            std::cout << "Simulation iteration " << i + 1 << " of " << space->probes.size() << std::endl;
             mom(i, k, true, space->Er, Et, Es);
             assert(Es.a.elements() == probesSize);
 
@@ -200,6 +225,7 @@ void MOM::iterateMom()
         for (size_t i = 0; i < space->probes.size(); i++){
             carray Et, Es;
             computations.push_back(Et);
+//            std::cout << "Iteration " << i + 1 << " of " << space->probes.size() << std::endl;
             mom(i, k, false, space->Er, computations.at(computations.size()-1), Es);
         }
     }
@@ -259,7 +285,8 @@ void MOM::iterateMom()
 
 void MOM::pinv(carray &A, carray &Ai)
 {
-    int minDim = min(A.a.row(0).elements(), A.a.col(0).elements());
+    int minDim = std::min(A.a.row(0).elements(), A.a.col(0).elements());
+//    int minDim = min(A.a.row(0).elements(), A.a.col(0).elements());
     af::array u, vt;
     af::array s;
 
