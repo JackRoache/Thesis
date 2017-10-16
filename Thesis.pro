@@ -8,7 +8,7 @@ CONFIG += console
 CONFIG -= app_bundle
 
 TEMPLATE = app
-
+LIBS += -lQt5Concurrent
 SOURCES += main.cpp \
     bessel.cpp \
     clbessel.cpp \
@@ -52,14 +52,25 @@ HEADERS += \
 DISTFILES += \
     besselj0.cl
 
+LIBS += -L/home/jack/ArrayFire/lib/ -laf
+INCLUDEPATH += '/home/jack/ArrayFire/include'
+DEPENDPATH += '/home/jack/ArrayFire/include'
 
+LIBS += -L'/usr/lib/x86_64-linux-gnu' -lOpenCL
 
-win32: LIBS += -L$$PWD/'../../Program Files/ArrayFire/v3/lib/' -laf
+INCLUDEPATH += '/opt/opencl-headers/include'
+DEPENDPATH += '/opt/opencl-headers/include'
 
-INCLUDEPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
-DEPENDPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
+LIBS += -L'/home/jack/workspace/Thesis/' -lcomplex_bessel
+INCLUDEPATH += '/home/jack/workspace/Thesis/Complex_Bessel/'
+DEPENDPATH += '/home/jack/workspace/Thesis/Complex_Bessel/'
 
-win32: LIBS += -L$$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/lib/x86_64/' -lOpenCL
+#win32: LIBS += -L$$PWD/'../../Program Files/ArrayFire/v3/lib/' -laf
 
-INCLUDEPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'
-DEPENDPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'
+#INCLUDEPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
+#DEPENDPATH += $$PWD/'../../Program Files/ArrayFire/v3/include'
+
+#win32: LIBS += -L$$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/lib/x86_64/' -lOpenCL
+
+#INCLUDEPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'
+#DEPENDPATH += $$PWD/'../../Program Files (x86)/AMD APP SDK/3.0/include'

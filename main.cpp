@@ -3,6 +3,8 @@
 #include <QTime>
 #include <QFile>
 #include <QDir>
+#include <QDateTime>
+#include <QDebug>
 
 #include <stdio.h>
 #include <algorithm>
@@ -23,6 +25,8 @@
 
 #include "phantomfile.h"
 #include "tissueproperties.h"
+
+#include "Complex_Bessel/complex_bessel.h"
 
 #define CE0     (8.854e-12)
 
@@ -105,19 +109,19 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er, const
         QColor im,re;
 
         if (minR != maxR){
-            float sr = (num.real() - minR) / (maxR - minR);
-            sr = min(max(0.0, sr), 1.0);
+            double sr = (num.real() - minR) / (maxR - minR);
+            sr = std::min(std::max(0.0, sr), 1.0);
             int lower = sr * map.size();
-            lower = min(max(lower, 0), map.size()-2);
+            lower = std::min(std::max(lower, 0), map.size()-2);
             re = interpolate(map[lower], map[lower+1], sr);
             *dReal++ = re.rgb();
         }
 
         if (minI != maxI){
-            float si =  (num.imag() - minI) / (maxI - minI);
-            si = min(max(0.0, si), 1.0);
+            double si =  (num.imag() - minI) / (maxI - minI);
+            si = std::min(std::max(0.0, si), 1.0);
             int lower = si * map.size();
-            lower = min(max(lower, 0), map.size()-2);
+            lower = std::min(std::max(lower, 0), map.size()-2);
             im = interpolate(map[lower], map[lower+1], si);
             *dImag++ = im.rgb();
         }
@@ -153,27 +157,35 @@ void iterationImage(RunInfo *info, ImagingSpace *space, carray &field, int itera
     //    info->window->surface(space->x, space->y, af::imag(field.a), name.str().c_str());
 }
 
-void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace &space, TissueProperties &props, float freq)
+void generatePhantom(PhantomFile &file, int slice, int downsample, int border, ImagingSpace &space, TissueProperties &props, float freq)
 {
     std::cout << "Generating Phantom" << std::endl;
     QByteArray data = file.getSlice(slice);
     float omega = 2 * PI * freq;
     float x = space.lx / -2;
     float y = space.ly / -2;
-    int size = (file.getWidth() - 80) * (file.getHeight() - 80) / downsample / downsample;
+    int size = (file.getWidth() - 2 * border) * (file.getHeight() - 2 * border) / downsample / downsample;
     space.x = af::array(size);
     space.y = af::array(size);
     space.Er = carray(size);
+    space.Er.r = af::constant(0, space.Er.a.dims());
+    space.Er.i = af::constant(0, space.Er.a.dims());
 
-    //downsize to 44 x 44 array size
+    af::cfloat medium;
+    {
+        std::complex<double> cond = 0;
+        std::complex<double> imag(0,1);
+        cond = space.medium_cond / (omega * CE0 * imag);
+        medium = af::cfloat(space.medium_es + cond.real(), -space.medium_es + cond.imag());
+        medium.imag = 0;//40.0;
+    }
 
-
-    for (int i = 40; i < file.getWidth() - 40; i++){
-        for (int j = 40; j < file.getHeight() - 40; j++){\
+    for (int i = border; i < file.getWidth() - border; i++){
+        for (int j = border; j < file.getHeight() - border; j++){\
             //relying on int rounding to get this right
-            int h1 = i / downsample - 10;
-            int h2 = (file.getWidth() - 80) / downsample;
-            int l1 = j / downsample - 10;
+            int h1 = (i - border) / downsample;
+            int h2 = (file.getWidth() - 2 * border) / downsample;
+            int l1 = (j - border) / downsample;
             int next = h1 * h2 + l1;
             int index = i * file.getWidth() + j;
 
@@ -189,14 +201,8 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
 
             int id = data[index];
             switch (id) {
+            //Background, handled below
             case 0:
-                Einf = space.medium.real;
-                Es_cole[0] = 0;
-                Tau[0] = 0;
-                Tau[1] = 1;
-                alpha[0] =0;
-                Cond_cole = 0;
-                K  = 1;
                 break;
 
                 //Skin
@@ -387,8 +393,14 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
             }
 
             cond = Cond_cole / (omega * CE0 * imag);
-            space.Er.r(next) += Einf + temp.real() + cond.real();
-            space.Er.i(next) += temp.imag() + cond.imag();
+
+            if (id != 0){
+                space.Er.r(next) += Einf + temp.real() + cond.real();
+                space.Er.i(next) += temp.imag() + cond.imag();
+            } else {
+                space.Er.r(next) += medium.real;
+                space.Er.i(next) += medium.imag;
+            }
 
 
             y+=space.dy / downsample;
@@ -397,9 +409,10 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, ImagingSpace 
         x += space.dx / downsample;
     }
 
+
     space.Er.refresh();
     space.Er.a = space.Er.a / (downsample * downsample); //correct for downsampling
-    space.Er.a = space.Er.a / space.medium;
+    space.Er.a = space.Er.a / medium;
     std::cout << "Finished Generating Phantom" << std::endl;
 }
 
@@ -439,25 +452,31 @@ void runBim(ImagingSpace &space, RunInfo &info)
 
 void simple_phantom(int freq, double lambda, af::Window &window)
 {
+    int border = 40;
+    int downsample = 4;
+
     ImagingSpace space;
-    space.dx = 1.1e-3 * 4;
-    space.dy = 1.1e-3 * 4;
-    space.lx = space.dx * (256 - 80) / 4;
-    space.ly = space.dy * (256 - 80) / 4;
+    space.dx = 1.1e-3 * downsample;
+    space.dy = 1.1e-3 * downsample;
+    space.lx = space.dx * (256 - border * 2) / downsample;
+    space.ly = space.dy * (256 - border * 2) / downsample;
     space.freqs.push_back(freq);
-    space.medium = af::cfloat(40,0);
+//    space.medium = af::cfloat(30, 0);
+    space.medium_es = 40;
+    space.medium_cond = 0;
 
     RunInfo info;
-    info.iterations = 10;
+    info.iterations = 5;
     info.lambda = lambda;
     info.window = &window;
+    info.slow = false;
 
     PhantomFile phant("det_head_u2.med", 256, 256, 128);
     TissueProperties props;
 
-    generatePhantom(phant, 30, 4, space, props, freq);
+    generatePhantom(phant, 30, downsample, border, space, props, freq);
 
-    generateProbes(space, 0.11, 0.10, 36);
+    generateProbes(space, 0.11, 0.09, 36);
     carray phantom = space.Er;
 
     //simple initial guess
@@ -469,12 +488,9 @@ void simple_phantom(int freq, double lambda, af::Window &window)
         ss << "Phantom Constant " << freq << "hz " << lambda << " lambda";
         info.name = ss.str();
     }
-//    runBim(space, info);
-
-
+    runBim(space, info);
 
     //Circular initial guess
-
     int nx = space.lx / space.dx;
     int ny = space.ly / space.dy;
 
@@ -514,7 +530,7 @@ void simple_phantom(int freq, double lambda, af::Window &window)
         ss << "Phantom Perfect "<< freq << "hz " << lambda <<" lambda";
         info.name = ss.str();
     }
-    runBim(space, info);
+//    runBim(space, info);
 }
 
 void very_simple()
@@ -525,12 +541,16 @@ void very_simple()
     space.lx = 1e-3 * 75;
     space.ly = 1e-3 * 75;
     space.freqs.push_back(5e9);
-    space.medium = af::cfloat(1,0);
+//    space.medium = af::cfloat(1,0);
+    space.medium_es = 1;
+    space.medium_cond = 0;
 
     RunInfo info;
     info.iterations = 5;
     info.lambda = 0.1;
     info.name  = "very simple";
+    info.slow = false;
+
     int nx = space.lx / space.dx;
     int ny = space.ly / space.dy;
 
@@ -568,6 +588,14 @@ void very_simple()
     runBim(space, info);
 }
 
+void bessel()
+{
+    std::complex<double> comp(0,1);
+    std::cout << sp_bessel::besselJ(0, comp) << std::endl;
+    std::cout << sp_bessel::besselY(0, comp) << std::endl;
+    std::cout << sp_bessel::hankelH1(0, comp) << std::endl;
+}
+
 int main()
 {
     af::setBackend(AF_BACKEND_OPENCL);
@@ -578,6 +606,8 @@ int main()
 
     af::Window window(512, 512, "Window!");
 
+    bessel();
+
     //    very_simple();
 
 //    simple_phantom(500000000, 0.07, window);
@@ -587,20 +617,34 @@ int main()
 //    simple_phantom(500000000, 0.12, window);
 //    simple_phantom(500000000, 0.13, window);
 
-    simple_phantom(500000000, 0.1, window);
-    simple_phantom(500000000, 0.01, window);
-    simple_phantom(500000000, 0, window);
-    simple_phantom(500000000, 0.2, window);
-    simple_phantom(500000000, 0.5, window);
-    simple_phantom(500000000, 1, window);
+    qDebug() << QDateTime::currentDateTime();
+    uint64_t epoch = QDateTime::currentMSecsSinceEpoch();
+//    simple_phantom(500000000, 0.1, window);
+//    simple_phantom(500000000, 0.01, window);
+//    simple_phantom(500000000, 0, window);
+//    simple_phantom(500000000, 0.2, window);
+//    simple_phantom(500000000, 0.5, window);
+//    simple_phantom(500000000, 1, window);
 
-    simple_phantom(300000000, 0.1, window);
-    simple_phantom(400000000, 0.1, window);
-    simple_phantom(600000000, 0.1, window);
-    simple_phantom(700000000, 0.1, window);
+//    simple_phantom(300000000, 0.1, window);
+//    simple_phantom(400000000, 0.1, window);
+//    simple_phantom(600000000, 1.1, window);
+    simple_phantom(700000000, 1.1, window);
     simple_phantom(800000000, 0.1, window);
     simple_phantom(900000000, 0.1, window);
     simple_phantom(1000000000, 0.1, window);
+    simple_phantom(1100000000, 0.1, window);
+    simple_phantom(1200000000, 0.1, window);
+    simple_phantom(1300000000, 0.1, window);
+    simple_phantom(1400000000, 0.1, window);
+    simple_phantom(1500000000, 0.1, window);
+    simple_phantom(1600000000, 0.1, window);
+    simple_phantom(1700000000, 0.1, window);
+    simple_phantom(1800000000, 0.1, window);
+    simple_phantom(1900000000, 0.1, window);
+    simple_phantom(2000000000, 0.1, window);
+    qDebug() << QDateTime::currentDateTime();
+    qDebug() << epoch - QDateTime::currentMSecsSinceEpoch();
 
 
     //    simple_phantom(500000000, 0.2);

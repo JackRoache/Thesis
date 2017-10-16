@@ -10,7 +10,10 @@ struct ImagingSpace {
     af::array x;
     af::array y; //corresponding positions of Er
     carray Er; //space that will be simulated
-    af::cfloat medium;
+//    af::cfloat medium;
+
+    double medium_es;
+    double medium_cond;
 
     double minReal, maxReal;
     double minImag, maxImag; //for imaging purposes
@@ -32,7 +35,7 @@ struct RunInfo {
     int iterations; //Iterations to run for
     float lambda;
     af::Window *window;
-
+    bool slow;
 };
 
 class MOM
@@ -58,8 +61,9 @@ private:
 
     void spaceToImage();
 
-    af::cfloat wavenumber(float freq, af::cfloat em);
+    af::cfloat wavenumber(double freq, double es, double cond);
     void pinv(carray &A, carray &Ai);
+    void slow_hankel(af::array &in, carray &out);
 
     RunInfo *info {0};
     ImagingSpace *space {0};
@@ -67,6 +71,7 @@ private:
 //    carray Es, Et;
     carray Ez; //Simulated data
 
+    void fast_hankel(af::array &in, carray &out);
 };
 
 #endif // MOM_H
