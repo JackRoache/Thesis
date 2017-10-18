@@ -62,7 +62,7 @@ private:
     void spaceToImage();
 
     af::cfloat wavenumber(double freq, double es, double cond);
-    void pinv(carray &A, carray &Ai);
+    void pinv(af::array &A, carray &Ai);
     void slow_hankel(af::array &in, carray &out);
 
     RunInfo *info {0};
@@ -72,6 +72,8 @@ private:
     carray Ez; //Simulated data
 
     void fast_hankel(af::array &in, carray &out);
+
+    void tikhonov_reg(af::array &A, af::array &b, carray &out, double lambda);
 };
 
 #endif // MOM_H

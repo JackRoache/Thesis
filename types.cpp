@@ -20,12 +20,12 @@ void carray::refresh()
 }
 void carray::resize(int dim)
 {
-    r = af::array(dim);
-    i = af::array(dim);
+    r = af::array(dim, TYPE_R);
+    i = af::array(dim, TYPE_R);
     refresh();
 }
 void carray::resize(int dim1, int dim2){
-    r = af::array(dim1, dim2);
-    i = af::array(dim1, dim2);
+    r = af::array(dim1, dim2, TYPE_R);
+    i = af::array(dim1, dim2, TYPE_R);
     refresh();
 }

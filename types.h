@@ -3,8 +3,11 @@
 #include <complex.h>
 #include <arrayfire.h>
 
-#define MIN(x, y) (x < y ? x : y)
-#define MAX(x, y) (x < y ? y : x)
+//#define MIN(x, y) (x < y ? x : y)
+//#define MAX(x, y) (x < y ? y : x)
+
+#define TYPE_R  f32
+#define TYPE_C  c32
 
 typedef std::complex<float> comp;
 //typedef float float;

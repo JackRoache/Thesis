@@ -1,7 +1,7 @@
 #include "clbessel.h"
 
-//#include <OpenCL/opencl.h>
-#include <CL/opencl.h>
+#include <OpenCL/opencl.h>
+//#include <CL/opencl.h>
 
 #include <stdio.h>
 

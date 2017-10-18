@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
-//#include <OpenCL/opencl.h>
-#include <CL/opencl.h>
+#include <OpenCL/opencl.h>
+//#include <CL/opencl.h>
 #include <arrayfire.h>
 #include <af/opencl.h>
 

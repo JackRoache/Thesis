@@ -8,7 +8,7 @@ CONFIG += console
 CONFIG -= app_bundle
 
 TEMPLATE = app
-LIBS += -lQt5Concurrent
+#LIBS += -lQt5Concurrent
 SOURCES += main.cpp \
     bessel.cpp \
     clbessel.cpp \
@@ -39,31 +39,31 @@ HEADERS += \
     tissueproperties.h \
     phantomfile.h
 
-#macx {
-#macx: LIBS += -L$$PWD/../../../../../usr/local/lib/ -laf.3.5.0
-#macx: LIBS += -framework OpenCL
+macx {
+macx: LIBS += -L$$PWD/../../../../../usr/local/lib/ -laf.3.5.0
+macx: LIBS += -framework OpenCL
 
-#INCLUDEPATH += /usr/local/include
-#DEPENDPATH += /usr/local/include
-#}
+INCLUDEPATH += /usr/local/include
+DEPENDPATH += /usr/local/include
+}
 
 
 
 DISTFILES += \
     besselj0.cl
 
-LIBS += -L/home/jack/ArrayFire/lib/ -laf
-INCLUDEPATH += '/home/jack/ArrayFire/include'
-DEPENDPATH += '/home/jack/ArrayFire/include'
+#LIBS += -L/home/jack/ArrayFire/lib/ -laf
+#INCLUDEPATH += '/home/jack/ArrayFire/include'
+#DEPENDPATH += '/home/jack/ArrayFire/include'
 
-LIBS += -L'/usr/lib/x86_64-linux-gnu' -lOpenCL
+#LIBS += -L'/usr/lib/x86_64-linux-gnu' -lOpenCL
 
-INCLUDEPATH += '/opt/opencl-headers/include'
-DEPENDPATH += '/opt/opencl-headers/include'
+#INCLUDEPATH += '/opt/opencl-headers/include'
+#DEPENDPATH += '/opt/opencl-headers/include'
 
-LIBS += -L'/home/jack/workspace/Thesis/' -lcomplex_bessel
-INCLUDEPATH += '/home/jack/workspace/Thesis/Complex_Bessel/'
-DEPENDPATH += '/home/jack/workspace/Thesis/Complex_Bessel/'
+#LIBS += -L'/home/jack/workspace/Thesis/' -lcomplex_bessel
+#INCLUDEPATH += '/home/jack/workspace/Thesis/Complex_Bessel/'
+#DEPENDPATH += '/home/jack/workspace/Thesis/Complex_Bessel/'
 
 #win32: LIBS += -L$$PWD/'../../Program Files/ArrayFire/v3/lib/' -laf
 
