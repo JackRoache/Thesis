@@ -10,6 +10,9 @@
 
 //#include "Complex_Bessel/complex_bessel.h"
 
+//for timing purposes only
+#include <QDateTime>
+
 #define CE0     (double)(8.854e-12)
 #define CU0     (double)(12.56e-7)
 #define PI      (double)(3.14159265)
@@ -45,8 +48,9 @@ void MOM::run()
 
     for (int i = 0; i < info->iterations; i++){
         std::cout << "Iteration " << i + 1 << " of " << info->iterations << std::endl;
+        int64_t epoch = QDateTime::currentMSecsSinceEpoch();
         iterateMom();
-
+        std::cout << "Run time " << QDateTime::currentMSecsSinceEpoch() - epoch << "ms" << std::endl;
         if(cb)
             cb(info, space, space->Er, i);
     }
@@ -122,7 +126,9 @@ void MOM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et,
     c = c * scale;
 
     //combine c and d, d is the diaganol of c
+
     assert(c.dims()[0] == N);
+    assert(c.dims()[0] == d.elements());
     for (int i = 0; i < N; i++){
         c(i,i) = d(i);
     }

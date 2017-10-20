@@ -1,5 +1,6 @@
-#include <QCoreApplication>
+//#include <QApplication>
 #include <QImage>
+#include <QPainter>
 #include <QTime>
 #include <QFile>
 #include <QDir>
@@ -65,22 +66,70 @@ QColor interpolate(QColor a, QColor b, float t)
 
     return final;
 }
+void make_scale(double min, double max, QString name, QList<QColor> map)
+{
+    const int border = 20;
+    const int length = 500;
+    const int height = 40;
+    QImage scale(length, height, QImage::Format_RGB32);
+    scale.fill(QColor("white"));
+
+    for (int i = border; i < length - border; i++){
+        QColor c;
+        double s = (i- border) / (double)(length - 2 * border);
+        s = std::min(std::max(0.0, s), 1.0);
+        int lower = s * (map.size() - 1);
+        lower = std::min(std::max(lower, 0), map.size()-2);
+        s *= map.size() - 1;
+        s -= lower;
+        c = interpolate(map[lower], map[lower+1], s);
+
+       for (int j = 0; j < height - border; j++) {
+           scale.setPixel(i, j, c.rgb());
+       }
+    }
+
+    //draw 3 scale bars
+    QPainter painter(&scale);
+    QColor black("black");
+    const int tickHeight = 10;
+    const int tickWidth = 4;
+    int depth = border - tickHeight;
+    painter.fillRect(border, depth, tickWidth, 1.5 * tickHeight, black);
+    int quater = (length - 2 * border) / 4;
+    painter.fillRect(border + quater - tickWidth/4, depth, tickWidth / 2, tickHeight, black);
+    painter.fillRect((length - tickWidth)/2, depth, tickWidth, 1.5 * tickHeight, black);
+    painter.fillRect(border + 3 * quater - tickWidth/4, depth, tickWidth / 2, tickHeight, black);
+    painter.fillRect(length-border-tickWidth, depth, tickWidth, 1.5 * tickHeight, black);
+
+    //write text
+    painter.setPen(QPen(Qt::black));
+    QFont font("Times", 18);
+    painter.setFont(font);
+
+    QString num = QString::number(min, 'g', 4);
+    painter.drawText(border - 10 , height, num);
+    num = QString::number((min + max)/2, 'g', 4);
+    painter.drawText(length/2 - 10, height, num);
+    num = QString::number(max, 'g', 4);
+    QRect rect(length - border - 60, border + 3, 60, 20);
+    painter.drawText(rect, Qt::AlignRight | Qt::AlignBottom, num);
+
+    QFile f(name);
+    f.open(QIODevice::ReadWrite);
+    scale.save(&f);
+}
 void surfToImage(const af::array &x, const af::array &y, const carray &Er_n, const QString &name, int cnx, int cny, ImagingSpace *space, bool firstRun)
 {
     carray Er;
-    Er.a = Er_n.a * af::cfloat(40,0);
+    Er.a = Er_n.a;
     QImage imReal(cnx, cny, QImage::Format_RGB32);
     QImage imImag(cnx, cny, QImage::Format_RGB32);
-    QImage scaleImag(10, cnx, QImage::Format_RGB32);
-    QImage scaleReal(10, cnx, QImage::Format_RGB32);
-
-    float minR = 1000, maxR = -1000, minI = 1000, maxI = -1000;
+    float minR = 1e9, maxR = -1e9, minI = 1e9, maxI = -1e9;
 
     Q_ASSERT(cnx * cny == Er.a.elements());
     uint32_t * dReal = (uint32_t *)imReal.bits();
     uint32_t * dImag  = (uint32_t*)imImag.bits();
-    uint32_t * sReal = (uint32_t *)scaleReal.bits();
-    uint32_t * sImag = (uint32_t *)scaleImag.bits();
 
     float * dataR = af::real(Er.a).host<float>();
     float * dataI = af::imag(Er.a).host<float>();
@@ -139,20 +188,6 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er_n, con
         }
     }
 
-    for (int i = 0; i < cnx; i++) {
-        QColor im;
-        double s = i / (float)cnx;
-        int lower = s * (map.size() - 1);
-        lower = std::min(std::max(lower, 0), map.size()-2);
-        s *= map.size() - 1;
-        s -= lower;
-        im = interpolate(map[lower], map[lower + 1], s);
-        for (int i = 0; i < 10; i++){
-            *sReal++ = im.rgb();
-            *sImag++ = im.rgb();
-        }
-    }
-
     //    af::freeHost(dataR);
     //    af::freeHost(dataI);
 
@@ -163,20 +198,16 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er_n, con
         QFile f1(name + QString("_imag.bmp"));
         f1.open(QIODevice::ReadWrite);
         imImag.save(&f1);
-        QString str = QString("_scaleImag_%1_%2.bmp").arg(minI).arg(maxI);
-        QFile f3(name + str);
-        f3.open(QIODevice::ReadWrite);
-        scaleImag.save(&f3);
+        QString str = QString("_scaleImag.bmp");
+//        make_scale(minI, maxI, name + str, map);
     }
 
     if (minR != maxR){
         QFile f2(name + QString("_real.bmp"));
         f2.open(QIODevice::ReadWrite);
         imReal.save(&f2);
-        QString str = QString("_scaleReal_%1_%2.bmp").arg(minR).arg(maxR);
-        QFile f4(name + str);
-        f4.open(QIODevice::ReadWrite);
-        scaleReal.save(&f4);
+        QString str = QString("_scaleReal.bmp");
+//        make_scale(minR, maxR, name + str, map);
     }
 }
 
@@ -236,10 +267,13 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, int border, I
             int id = data[index];
 
             //set tumor at 0,0
-            double offset_y = 40e-3;
+            double offset_y = 30e-3;
             double offset_x = 0;
-            double r = std::sqrt(std::pow(x-offset_x, 2) + std::pow(y-offset_y, 2));
-            if (r < 20e-3){
+            double scale_x = 2;
+            double scale_y = 1;
+            double radius = 20e-3;
+            double r = std::sqrt(std::pow((x-offset_x), 2) / scale_x + std::pow((y-offset_y), 2) / scale_y);
+            if (r < radius){
                 id = 84; //blood for stroke
             }
 
@@ -250,8 +284,6 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, int border, I
 
                 //Skin
             case 1:
-                id = 0; //remove skin
-                break;
                 Einf = 4;
                 Es_cole[0] = 32;
                 Es_cole[1] = 1100;
@@ -274,8 +306,6 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, int border, I
             case 100:
             case 102:
             case 125:
-                id = 0; //remove skull
-                break;
                 Einf = 4;
                 Es_cole[0] = 8;
                 Es_cole[1] = 4;
@@ -290,8 +320,6 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, int border, I
                 // Fat
             case 22:
             case 98:
-                id = 0;
-                break;
                 Einf  = 3;
                 Es_cole[0] = 1.42;
                 Es_cole[1] = 1.87;
@@ -412,8 +440,6 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, int border, I
 
                 //Bone Marrow
             case 26:
-                id = 0; //remove Bone Marrow
-                break;
                 Einf = 2.5;
                 Es_cole[0] = 9;
                 Es_cole[1] = 80;
@@ -503,7 +529,7 @@ void runBim(ImagingSpace &space, RunInfo &info)
 
 void simple_phantom(float freq, double lambda, af::Window &window)
 {
-    int border = 40;
+    int border = 0;//40;
     int downsample = 4;
 
     ImagingSpace space;
@@ -527,7 +553,8 @@ void simple_phantom(float freq, double lambda, af::Window &window)
 
     generatePhantom(phant, 30, downsample, border, space, props, freq);
 
-    generateProbes(space, 0.11, 0.09, 36);
+    generateProbes(space, 0.14, 0.12, 36);
+//    generateProbes(space, 0.11, 0.09, 36);
     carray phantom = space.Er;
 
     //simple initial guess
@@ -589,8 +616,8 @@ void very_simple()
     ImagingSpace space;
     space.dx = 5e-3;
     space.dy = 5e-3;
-    space.lx = 1e-3 * 75;
-    space.ly = 1e-3 * 75;
+    space.lx = 1e-3 * 200;
+    space.ly = 1e-3 * 200;
     space.freqs.push_back(5e9);
     //    space.medium = af::cfloat(1,0);
     space.medium_es = 1;
@@ -612,29 +639,66 @@ void very_simple()
     std::cout << nx << " " << ny << std::endl;
 
     int index = 0;
-    for (int i = 0; i < nx; i++) {
+    for (int i = 0; i < nx; i++){
         for (int j = 0; j < ny; j++){
-            double Xc = space.dx/2 + i * space.dx - space.lx / 2;
-            double Yc = space.dy/2 + j * space.dy - space.ly / 2;
-            space.x(index) = Xc;
-            space.y(index) = Yc;
+            //cyclinder in a cylinder
+            const double lxOffset = 30e-3;
+            const double lyoffset = 0;
+            const double lradius = 50e-3;
+            const double sxoffset = 20e-3;
+            const double syoffset = 20e-3;
+            const double sradius = 20e-3;
 
-            if ((Xc > -0.02) && (Xc < 0.02) && (Yc > -0.02) && (Yc < 0.02)){
+            double x = -space.lx / 2 + i * space.lx / nx + space.dx / 2;
+            double y = -space.ly / 2 + j * space.ly / ny + space.dy / 2;
+
+            double rl = std::sqrt(std::pow(x - lxOffset, 2) + std::pow(y - lyoffset, 2));
+            double rs = std::sqrt(std::pow(x-sxoffset, 2) + std::pow(y - syoffset, 2));
+
+            space.x(index) = x;
+            space.y(index) = y;
+
+            if (rs < sradius){
+                space.Er.r(index) = 0.5;
+                space.Er.i(index) = -1;
+            } else if (rl < lradius){
                 space.Er.r(index) = 1.5;
                 space.Er.i(index) = -0.1;
-            } else {
+            }else {
                 space.Er.r(index) = 1;
                 space.Er.i(index) = 0;
             }
             index++;
         }
     }
+
+    space.Er.refresh();
+
+
+//    int index = 0;
+//    for (int i = 0; i < nx; i++) {
+//        for (int j = 0; j < ny; j++){
+//            double Xc = space.dx/2 + i * space.dx - space.lx / 2;
+//            double Yc = space.dy/2 + j * space.dy - space.ly / 2;
+//            space.x(index) = Xc;
+//            space.y(index) = Yc;
+
+//            if ((Xc > -0.02) && (Xc < 0.02) && (Yc > -0.02) && (Yc < 0.02)){
+//                space.Er.r(index) = 1.5;
+//                space.Er.i(index) = -0.1;
+//            } else {
+//                space.Er.r(index) = 1;
+//                space.Er.i(index) = 0;
+//            }
+//            index++;
+//        }
+//    }
     assert(index == nx * ny);
     space.Er.refresh();
     af::print("Er", space.Er.a);
-    generateProbes(space, 0.05, 0.05, 12);
-    space.initalGuess.r = af::constant(1.0, space.Er.a.dims());
-    space.initalGuess.i = af::constant(0.0, space.Er.a.dims());
+    generateProbes(space, 0.09, 0.09, 36);
+    space.initalGuess.r = af::constant(100.0, space.Er.a.dims());
+    space.initalGuess.i = af::constant(100.0, space.Er.a.dims());
     space.initalGuess.refresh();
     runBim(space, info);
 }
@@ -647,8 +711,10 @@ void bessel()
     //    std::cout << sp_bessel::hankelH1(0, comp) << std::endl;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+//    QApplication app(argc, argv);
+
     af::setBackend(AF_BACKEND_OPENCL);
     af::info();
     std::cout << "Current Device " << af::getDevice() << std::endl;
@@ -658,8 +724,8 @@ int main()
     af::Window window(512, 512, "Window!");
 
     bessel();
-
-    //    very_simple();
+    very_simple();
+    return 0;
 
     //    simple_phantom(500000000, 0.07, window);
     //    simple_phantom(500000000, 0.08, window);
