@@ -81,27 +81,12 @@ void MOM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et,
     double a = sqrt(space->dx*space->dy / PI);
     af::cfloat scale;
     af::cfloat bj;
-//    if (k.imag == 0 && !info->slow){
-        scale = af::cfloat(0, PI * a * (float)0.5) * k.real;
-        bj = bessj(1, k.real*a);
-//    } else
-//    {
-//        std::complex<double> comp = sp_bessel::besselJ(1, std::complex<double>(k.real, k.imag));
-//        bj = af::cfloat(comp.real(), comp.imag());
-//        scale = af::cfloat(0, PI * a * (float)0.5) * k;
-//    }
+    scale = af::cfloat(0, PI * a * (float)0.5) * k.real;
+    bj = bessj(1, k.real*a);
 
     //Diaganol of matrix to solve
     af::cfloat D;
-//    if (k.imag == 0 && !info->slow){
-        D = af::cfloat(0,0.5)*(PI*k.real*a* af::cfloat(bessj(1, a*k.real), -1 * bessy(1, a*k.real)) - af::cfloat(0,2));
-//    } else
-//    {
-//        std::complex<double> comp(k.real, k.imag);
-//        comp = sp_bessel::besselJ(1, a*comp) - std::complex<double>(0,1) * sp_bessel::besselY(1, a*comp);
-//        af::cfloat h(comp.real(), comp.imag());
-//        D = af::cfloat(0,0.5)*(PI* k * a * h - af::cfloat(0,2));
-//    }
+    D = af::cfloat(0,0.5)*(PI*k.real*a* af::cfloat(bessj(1, a*k.real), -1 * bessy(1, a*k.real)) - af::cfloat(0,2));
 
     d = D * (Er_n) + 1;
 
@@ -109,24 +94,15 @@ void MOM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et,
     p = af::pow(af::tile(af::transpose(space->x), N, 1) - af::tile(space->x, 1, N), 2);
     p = p + af::pow(af::tile(af::transpose(space->y), N, 1) - af::tile(space->y, 1, N), 2);
     p = af::sqrt(p);
-//    if (k.imag == 0 && !info->slow){
-        p *= k.real;
-//    } else {
-//        p *= k;
-//    }
+    p *= k.real;
+    fast_hankel(p, bh);
 
-//    if (k.imag == 0 && !info->slow){
-        fast_hankel(p, bh);
-//    } else {
-//        slow_hankel(p, bh);
-//    }
 
     c = bj * af::tile(af::transpose(Er_n, false), N, 1);
     c = c * bh.a;
     c = c * scale;
 
     //combine c and d, d is the diaganol of c
-
     assert(c.dims()[0] == N);
     assert(c.dims()[0] == d.elements());
     for (int i = 0; i < N; i++){
@@ -139,15 +115,9 @@ void MOM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et,
     pho = af::pow(space->x - probeX, 2) + af::pow(space->y - probeY, 2);
 
     carray phoHank;
-//    if (k.imag == 0 && !info->slow){
-        pho = af::sqrt(pho) * k.real;
-        fast_hankel(pho, phoHank);
-        b = af::cfloat(0, 1) * k.real * 0.25 * phoHank.a;
-//    } else {
-//        pho = af::sqrt(pho) * k;
-//        slow_hankel(pho, phoHank);
-//        b = af::cfloat(0, 1) * k * 0.25 * phoHank.a;
-//    }
+    pho = af::sqrt(pho) * k.real;
+    fast_hankel(pho, phoHank);
+    b = af::cfloat(0, 1) * k.real * 0.25 * phoHank.a;
 
     Et.a = af::solve(c,b);
 
@@ -161,23 +131,11 @@ void MOM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et,
             carray esb;
 
             dis = af::sqrt(af::pow(x0 - space->x, 2) + af::pow(y0 - space->y, 2));
-//            if (k.imag == 0 && !info->slow){
-                dis = dis * k.real;
-                fast_hankel(dis, esb);
-//            } else {
-//                dis = dis * k;
-//                slow_hankel(dis, esb);
-//            }
+            dis = dis * k.real;
+            fast_hankel(dis, esb);
 
             af::cfloat cons;
-//            if (k.imag == 0 && !info->slow){
-                cons = af::cfloat(0,-1) * PI * k.real/ 2.0 * a * bessj(1, k.real*a);
-//            }else{
-//                std::complex<double> num(k.real, k.imag);
-//                num = sp_bessel::besselJ(1, num * a);
-//                af::cfloat f(num.real(), num.imag());
-//                cons = af::cfloat(0,-1) * PI * k/ 2.0 * a * f;
-//            }
+            cons = af::cfloat(0,-1) * PI * k.real/ 2.0 * a * bessj(1, k.real*a);
 
             af::array sum = af::sum(cons * (Er_n) * Et.a * esb.a);
             Es.a(i) = sum;
@@ -195,7 +153,7 @@ void MOM::inverseBuilder(carray &Efunc, carray &B, af::cfloat k)
 
     int M = space->probes.size();
     int N = space->x.elements();
-//    B.resize(M, N);
+    //    B.resize(M, N);
     af::array p, x2, y2;
 
     double a = sqrt(space->dx*space->dy / PI);
@@ -212,18 +170,9 @@ void MOM::inverseBuilder(carray &Efunc, carray &B, af::cfloat k)
     p = af::sqrt(x2 + y2);
     carray bj;
     af::cfloat cons;
-//    if (k.imag == 0 && !info->slow){
-        p = p * k.real;
-        fast_hankel(p, bj);
-        cons = af::cfloat(0, -PI * k.real * 0.5) * a * bessj(1, k.real*a);
-//    } else {
-//        p = p * k;
-//        slow_hankel(p, bj);
-//        std::complex<double> num(k.real, k.imag);
-//        num = sp_bessel::besselJ(1, num * a);
-//        af::cfloat besselj(num.real(), num.imag());
-//        cons = af::cfloat(0, -PI * 0.5) * k * a * besselj;
-//    }
+    p = p * k.real;
+    fast_hankel(p, bj);
+    cons = af::cfloat(0, -PI * k.real * 0.5) * a * bessj(1, k.real*a);
 
     B.a = cons * af::tile(af::transpose(Efunc.a),M,1);
     B.a = B.a * bj.a;
@@ -332,10 +281,6 @@ void MOM::pinv(af::array &A, carray &Ai)
     s = af::diag(s, 0, false).as(c32);
     vt = vt(af::seq(minDim), af::span);
 
-//    for (int i = 0; i < minDim; i++){
-//        s(i,i) = 1/s(i,i);
-//    }
-
     Ai.a = af::matmul(vt.H(), s, u.H());
 }
 void MOM::tikhonov_reg(af::array &A, af::array &b, carray &out, double lambda)
@@ -381,49 +326,49 @@ void map_function(std::complex<double> &num)
 void MOM::slow_hankel(af::array &in, carray &out)
 {
     assert(false);
-//#if 0
-//    float *_real = af::real(in).host<float>();
-//    float *_imag = af::imag(in).host<float>();
-//    out.a = af::array(in.dims());
+    //#if 0
+    //    float *_real = af::real(in).host<float>();
+    //    float *_imag = af::imag(in).host<float>();
+    //    out.a = af::array(in.dims());
 
-//    for (int i = 0; i < in.elements(); i++){
-//        std::complex<double> num(_real[i], _imag[i]);
-//        num = sp_bessel::hankelH2(0, num);
-//        _real[i] = num.real();
-//        _imag[i] = num.imag();
-//    }
-//    out.r = af::array(in.dims(), _real);
-//    out.i = af::array(in.dims(), _imag);
-//    out.refresh();
+    //    for (int i = 0; i < in.elements(); i++){
+    //        std::complex<double> num(_real[i], _imag[i]);
+    //        num = sp_bessel::hankelH2(0, num);
+    //        _real[i] = num.real();
+    //        _imag[i] = num.imag();
+    //    }
+    //    out.r = af::array(in.dims(), _real);
+    //    out.i = af::array(in.dims(), _imag);
+    //    out.refresh();
 
-//    af::freeHost(_real);
-//    af::freeHost(_imag);
-//#else
-//    float *_real = af::real(in).host<float>();
-//    float *_imag = af::imag(in).host<float>();
-//    out.a = af::array(in.dims());
+    //    af::freeHost(_real);
+    //    af::freeHost(_imag);
+    //#else
+    //    float *_real = af::real(in).host<float>();
+    //    float *_imag = af::imag(in).host<float>();
+    //    out.a = af::array(in.dims());
 
-//    QVector<std::complex<double>> nums;
-//    for (int i = 0; i < in.elements(); i++){
-//        nums.append(std::complex<double>(_real[i], _imag[i]));
-//    }
+    //    QVector<std::complex<double>> nums;
+    //    for (int i = 0; i < in.elements(); i++){
+    //        nums.append(std::complex<double>(_real[i], _imag[i]));
+    //    }
 
-//    QFuture<void> future = QtConcurrent::map(nums, map_function);
-//    future.waitForFinished();
+    //    QFuture<void> future = QtConcurrent::map(nums, map_function);
+    //    future.waitForFinished();
 
-//    for (int i = 0; i < in.elements(); i++){
-//        _real[i] = nums[i].real();
-//        _imag[i] = nums[i].imag();
-//    }
+    //    for (int i = 0; i < in.elements(); i++){
+    //        _real[i] = nums[i].real();
+    //        _imag[i] = nums[i].imag();
+    //    }
 
-//    out.r = af::array(in.dims(), _real);
-//    out.i = af::array(in.dims(), _imag);
-//    out.refresh();
+    //    out.r = af::array(in.dims(), _real);
+    //    out.i = af::array(in.dims(), _imag);
+    //    out.refresh();
 
-//    af::freeHost(_real);
-//    af::freeHost(_imag);
+    //    af::freeHost(_real);
+    //    af::freeHost(_imag);
 
-//#endif
+    //#endif
 }
 
 void MOM::spaceToImage()

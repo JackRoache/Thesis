@@ -1,4 +1,4 @@
-#QT += widgets
+QT += widgets
 QT += core
 QT += gui
 

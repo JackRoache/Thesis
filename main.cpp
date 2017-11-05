@@ -1,4 +1,4 @@
-//#include <QApplication>
+#include <QApplication>
 #include <QImage>
 #include <QPainter>
 #include <QTime>
@@ -84,9 +84,9 @@ void make_scale(double min, double max, QString name, QList<QColor> map)
         s -= lower;
         c = interpolate(map[lower], map[lower+1], s);
 
-       for (int j = 0; j < height - border; j++) {
-           scale.setPixel(i, j, c.rgb());
-       }
+        for (int j = 0; j < height - border; j++) {
+            scale.setPixel(i, j, c.rgb());
+        }
     }
 
     //draw 3 scale bars
@@ -112,7 +112,7 @@ void make_scale(double min, double max, QString name, QList<QColor> map)
     num = QString::number((min + max)/2, 'g', 4);
     painter.drawText(length/2 - 10, height, num);
     num = QString::number(max, 'g', 4);
-    QRect rect(length - border - 60, border + 3, 60, 20);
+    QRect rect(length - border - 80, border + 3, 80, 20);
     painter.drawText(rect, Qt::AlignRight | Qt::AlignBottom, num);
 
     QFile f(name);
@@ -199,7 +199,7 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er_n, con
         f1.open(QIODevice::ReadWrite);
         imImag.save(&f1);
         QString str = QString("_scaleImag.bmp");
-//        make_scale(minI, maxI, name + str, map);
+        //        make_scale(minI, maxI, name + str, map);
     }
 
     if (minR != maxR){
@@ -207,7 +207,7 @@ void surfToImage(const af::array &x, const af::array &y, const carray &Er_n, con
         f2.open(QIODevice::ReadWrite);
         imReal.save(&f2);
         QString str = QString("_scaleReal.bmp");
-//        make_scale(minR, maxR, name + str, map);
+        //        make_scale(minR, maxR, name + str, map);
     }
 }
 
@@ -266,7 +266,7 @@ void generatePhantom(PhantomFile &file, int slice, int downsample, int border, I
 
             int id = data[index];
 
-            //set tumor at 0,0
+            //set storke at 0,0
             double offset_y = 30e-3;
             double offset_x = 0;
             double scale_x = 2;
@@ -527,9 +527,9 @@ void runBim(ImagingSpace &space, RunInfo &info)
     surfToImage(space.x, space.y, space.Er, endName.toUtf8().data(), nx, ny, &space, false);
 }
 
-void simple_phantom(float freq, double lambda, af::Window &window)
+void simple_phantom(float freq, double lambda)
 {
-    int border = 0;//40;
+    int border = 30;//40;
     int downsample = 4;
 
     ImagingSpace space;
@@ -538,14 +538,12 @@ void simple_phantom(float freq, double lambda, af::Window &window)
     space.lx = space.dx * (256 - border * 2) / downsample;
     space.ly = space.dy * (256 - border * 2) / downsample;
     space.freqs.push_back(freq);
-    //    space.medium = af::cfloat(30, 0);
     space.medium_es = 30;
     space.medium_cond = 0;
 
     RunInfo info;
-    info.iterations = 3;
+    info.iterations = 10;
     info.lambda = lambda;
-    info.window = &window;
     info.slow = false;
 
     PhantomFile phant("det_head_u2.med", 256, 256, 128);
@@ -554,7 +552,6 @@ void simple_phantom(float freq, double lambda, af::Window &window)
     generatePhantom(phant, 30, downsample, border, space, props, freq);
 
     generateProbes(space, 0.14, 0.12, 36);
-//    generateProbes(space, 0.11, 0.09, 36);
     carray phantom = space.Er;
 
     //simple initial guess
@@ -597,7 +594,7 @@ void simple_phantom(float freq, double lambda, af::Window &window)
         ss << "Phantom Round " << freq << "hz " << lambda <<" lambda";
         info.name = ss.str();
     }
-    //    runBim(space, info);
+    runBim(space, info);
 
 
     //Perfect guess
@@ -608,7 +605,7 @@ void simple_phantom(float freq, double lambda, af::Window &window)
         ss << "Phantom Perfect "<< freq << "hz " << lambda <<" lambda";
         info.name = ss.str();
     }
-    //    runBim(space, info);
+    runBim(space, info);
 }
 
 void very_simple()
@@ -618,13 +615,13 @@ void very_simple()
     space.dy = 5e-3;
     space.lx = 1e-3 * 200;
     space.ly = 1e-3 * 200;
-    space.freqs.push_back(5e9);
+    space.freqs.push_back(8000e6);
     //    space.medium = af::cfloat(1,0);
     space.medium_es = 1;
     space.medium_cond = 0;
 
     RunInfo info;
-    info.iterations = 5;
+    info.iterations = 10;
     info.lambda = 0.1;
     info.name  = "very simple";
     info.slow = false;
@@ -675,27 +672,26 @@ void very_simple()
     space.Er.refresh();
 
 
-//    int index = 0;
-//    for (int i = 0; i < nx; i++) {
-//        for (int j = 0; j < ny; j++){
-//            double Xc = space.dx/2 + i * space.dx - space.lx / 2;
-//            double Yc = space.dy/2 + j * space.dy - space.ly / 2;
-//            space.x(index) = Xc;
-//            space.y(index) = Yc;
+    //    int index = 0;
+    //    for (int i = 0; i < nx; i++) {
+    //        for (int j = 0; j < ny; j++){
+    //            double Xc = space.dx/2 + i * space.dx - space.lx / 2;
+    //            double Yc = space.dy/2 + j * space.dy - space.ly / 2;
+    //            space.x(index) = Xc;
+    //            space.y(index) = Yc;
 
-//            if ((Xc > -0.02) && (Xc < 0.02) && (Yc > -0.02) && (Yc < 0.02)){
-//                space.Er.r(index) = 1.5;
-//                space.Er.i(index) = -0.1;
-//            } else {
-//                space.Er.r(index) = 1;
-//                space.Er.i(index) = 0;
-//            }
-//            index++;
-//        }
-//    }
+    //            if ((Xc > -0.02) && (Xc < 0.02) && (Yc > -0.02) && (Yc < 0.02)){
+    //                space.Er.r(index) = 1.5;
+    //                space.Er.i(index) = -0.1;
+    //            } else {
+    //                space.Er.r(index) = 1;
+    //                space.Er.i(index) = 0;
+    //            }
+    //            index++;
+    //        }
+    //    }
     assert(index == nx * ny);
     space.Er.refresh();
-    af::print("Er", space.Er.a);
     generateProbes(space, 0.09, 0.09, 36);
     space.initalGuess.r = af::constant(100.0, space.Er.a.dims());
     space.initalGuess.i = af::constant(100.0, space.Er.a.dims());
@@ -703,17 +699,8 @@ void very_simple()
     runBim(space, info);
 }
 
-void bessel()
-{
-    //    std::complex<double> comp(0,1);
-    //    std::cout << sp_bessel::besselJ(0, comp) << std::endl;
-    //    std::cout << sp_bessel::besselY(0, comp) << std::endl;
-    //    std::cout << sp_bessel::hankelH1(0, comp) << std::endl;
-}
-
 int main(int argc, char *argv[])
 {
-//    QApplication app(argc, argv);
 
     af::setBackend(AF_BACKEND_OPENCL);
     af::info();
@@ -721,65 +708,28 @@ int main(int argc, char *argv[])
     af::array dummy(1);
     initKernels(dummy);
 
-    af::Window window(512, 512, "Window!");
+    //    af::Window window(512, 512, "Window!");
 
-    bessel();
-    very_simple();
-    return 0;
+    //    {
+    //        QApplication app(argc, argv);
+    //        QList<QColor> map;
+    //        QColor first("black");
+    //        QColor second("red");
+    //        QColor third("white");
+    //        map << first << second << third;
 
-    //    simple_phantom(500000000, 0.07, window);
-    //    simple_phantom(500000000, 0.08, window);
-    //    simple_phantom(500000000, 0.09, window);
-    //    simple_phantom(500000000, 0.11, window);
-    //    simple_phantom(500000000, 0.12, window);
-    //    simple_phantom(500000000, 0.13, window);
+    //        make_scale(0.992689, 1.01513, "simple_real_scale.bmp", map);
+    //        make_scale(-0.0197894, 0.0107362, "simple_imag_scale.bmp", map);
+    //        return 0;
+    //    }
+
 
     qDebug() << QDateTime::currentDateTime();
     int64_t epoch = QDateTime::currentMSecsSinceEpoch();
-    //    simple_phantom(500000000, 0.1, window);
-    //    simple_phantom(500000000, 0.01, window);
-    //    simple_phantom(500000000, 0, window);
-    //    simple_phantom(500000000, 0.2, window);
-    //    simple_phantom(500000000, 0.5, window);
-    //    simple_phantom(500000000, 1, window);
-
-    //    simple_phantom(300000000, 0.1, window);
-    //    simple_phantom(400000000, 0.1, window);
-    //    simple_phantom(600000000, 1.1, window);
-    //    simple_phantom(700000000, 0.1, window);
-    simple_phantom(650e6, 0.1, window);
-    simple_phantom(850e6, 0.1, window);
-    simple_phantom(1000e6, 0.1, window);
+    simple_phantom(10000e6, 0.1);
 
     qDebug() << QDateTime::currentDateTime();
     qDebug() << QDateTime::currentMSecsSinceEpoch() - epoch;
 
-
-    //    simple_phantom(500000000, 0.2);
-    //    simple_phantom(600000000, 0.2);
-
-    //    simple_phantom(500000000, 0.5);
-    //    simple_phantom(600000000, 0.5);
-
-    //    simple_phantom(500000000, 0.01);
-    //    simple_phantom(600000000, 0.01);
-
     return 0;
 }
-
-
-/*
- * S parameter data
- * Data from  a full wave simulator
- *
- * Pre seeding data
- *
- * Can it make it better
- * Does it screw it up
- * Iteration speed up??
- * realistic seeding
- * average dialetric or approx internal structure??
- * How accurate does the interanl seeding need to be??
- *
- * How fine of a resolution do you need?? (Voxels)
- */

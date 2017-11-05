@@ -34,7 +34,6 @@ struct RunInfo {
     std::string name; //used for image names
     int iterations; //Iterations to run for
     float lambda;
-    af::Window *window;
     bool slow;
 };
 
