@@ -1,5 +1,5 @@
-#ifndef MOM_H
-#define MOM_H
+#ifndef BIM_H
+#define BIM_H
 
 #include <af/array.h>
 
@@ -37,10 +37,10 @@ struct RunInfo {
     bool slow;
 };
 
-class MOM
+class BIM
 {
 public:
-    MOM();
+    BIM();
 
     void setImagingSpace(ImagingSpace *space);
     void setIterations(RunInfo *info);
@@ -75,4 +75,4 @@ private:
     void tikhonov_reg(af::array &A, af::array &b, carray &out, double lambda);
 };
 
-#endif // MOM_H
+#endif // BIM_H

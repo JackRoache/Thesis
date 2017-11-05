@@ -1,4 +1,4 @@
-#include "mom.h"
+#include "bim.h"
 
 #include <complex>
 #include <assert.h>
@@ -18,29 +18,29 @@
 #define PI      (double)(3.14159265)
 #define CC      (double)(3e8)
 
-MOM::MOM()
+BIM::BIM()
 {
 
 }
 
-void MOM::setImagingSpace(ImagingSpace *space)
+void BIM::setImagingSpace(ImagingSpace *space)
 {
     assert(space);
     this->space = space;
 }
 
-void MOM::setIterations(RunInfo *info)
+void BIM::setIterations(RunInfo *info)
 {
     assert(info);
     this->info = info;
 }
 
-void MOM::setCallBack(MOM::imageCB fn)
+void BIM::setCallBack(BIM::imageCB fn)
 {
     cb = fn;
 }
 
-void MOM::run()
+void BIM::run()
 {
     simulateSpace();
 
@@ -58,7 +58,7 @@ void MOM::run()
 /* Solve the forward problem using Method of Moments
  * E_m^{inc} = E_m^t + (jk^2/4)\sum_{n=1}^N(\epsilon_r-1)E_n\int\int_{area\ n}H_0^{(2)}(k\rho)dx'dy'
  */
-void MOM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et, carray &Es)
+void BIM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et, carray &Es)
 {
     assert(space->x.elements() == space->y.elements());
     assert(space->x.elements() == Er.a.elements());
@@ -147,7 +147,7 @@ void MOM::mom(int probenum, af::cfloat k, bool simulate, carray &Er, carray &Et,
  *
  * b_{i,j} = - \frac{j}{4}\int_{s_j} \bm{E}_{inc}(x^{'},y^{'})  H_0^{(2)}(k_m\rho(x,y,x^{'},y^{'}))dx^{'}dy^{'}
  */
-void MOM::inverseBuilder(carray &Efunc, carray &B, af::cfloat k)
+void BIM::inverseBuilder(carray &Efunc, carray &B, af::cfloat k)
 {
     assert(space->x.elements() == space->y.elements());
 
@@ -178,7 +178,7 @@ void MOM::inverseBuilder(carray &Efunc, carray &B, af::cfloat k)
     B.a = B.a * bj.a;
 }
 
-void MOM::simulateSpace()
+void BIM::simulateSpace()
 {
     Ez.resize(space->probes.size() * space->probes.size() * space->freqs.size());
     assert(space->initalGuess.a.elements() == space->Er.a.elements());
@@ -198,7 +198,7 @@ void MOM::simulateSpace()
     }
 }
 
-void MOM::iterateMom()
+void BIM::iterateMom()
 {
     std::vector<carray> computations;
     carray Ereg, Treg, Inverse;
@@ -265,7 +265,7 @@ void MOM::iterateMom()
     space->Er.a = af::transpose(Treg.a + n, true) ; //correct for offset and apply complex conjugate / transpose
 }
 
-void MOM::pinv(af::array &A, carray &Ai)
+void BIM::pinv(af::array &A, carray &Ai)
 {
     int minDim = std::min(A.row(0).elements(), A.col(0).elements());
     af::array u, vt;
@@ -283,7 +283,7 @@ void MOM::pinv(af::array &A, carray &Ai)
 
     Ai.a = af::matmul(vt.H(), s, u.H());
 }
-void MOM::tikhonov_reg(af::array &A, af::array &b, carray &out, double lambda)
+void BIM::tikhonov_reg(af::array &A, af::array &b, carray &out, double lambda)
 {
     int minDim = std::min(A.row(0).elements(), A.col(0).elements());
     af::array s, u, vt, d;
@@ -307,7 +307,7 @@ void MOM::tikhonov_reg(af::array &A, af::array &b, carray &out, double lambda)
     std::cout << "out " << out.a.dims() << std::endl;
 }
 
-void MOM::fast_hankel(af::array &in, carray &out)
+void BIM::fast_hankel(af::array &in, carray &out)
 {
     bessj0(in, out.r);
     bessy0(in, out.i);
@@ -323,7 +323,7 @@ void map_function(std::complex<double> &num)
 }
 #endif
 
-void MOM::slow_hankel(af::array &in, carray &out)
+void BIM::slow_hankel(af::array &in, carray &out)
 {
     assert(false);
     //#if 0
@@ -371,12 +371,12 @@ void MOM::slow_hankel(af::array &in, carray &out)
     //#endif
 }
 
-void MOM::spaceToImage()
+void BIM::spaceToImage()
 {
 
 }
 
-af::cfloat MOM::wavenumber(double freq, double es, double cond)
+af::cfloat BIM::wavenumber(double freq, double es, double cond)
 {
     std::complex<float> complex(0.0,1.0);
 

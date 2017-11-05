@@ -22,7 +22,7 @@
 #include "clbessel.h"
 
 #include "types.h"
-#include "mom.h"
+#include "bim.h"
 
 #include "phantomfile.h"
 #include "tissueproperties.h"
@@ -518,12 +518,12 @@ void runBim(ImagingSpace &space, RunInfo &info)
     surfToImage(space.x, space.y, space.Er, startName.toUtf8().data(), nx, ny, &space, true);
     surfToImage(space.x, space.y, space.initalGuess, initialGuess.toUtf8().data(), nx, ny, &space, false);
     std::cout << "Start BIM " << info.name << std::endl;
-    MOM mom;
-    mom.setCallBack(iterationImage);
-    mom.setImagingSpace(&space);
-    mom.setIterations(&info);
+    BIM bim;
+    bim.setCallBack(iterationImage);
+    bim.setImagingSpace(&space);
+    bim.setIterations(&info);
 
-    mom.run();
+    bim.run();
     surfToImage(space.x, space.y, space.Er, endName.toUtf8().data(), nx, ny, &space, false);
 }
 

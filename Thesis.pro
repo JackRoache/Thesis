@@ -13,10 +13,10 @@ TEMPLATE = app
 SOURCES += main.cpp \
     bessel.cpp \
     clbessel.cpp \
-    mom.cpp \
     types.cpp \
     tissueproperties.cpp \
-    phantomfile.cpp
+    phantomfile.cpp \
+    bim.cpp
 
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which as been marked deprecated (the exact warnings
@@ -35,10 +35,10 @@ HEADERS += \
     bessel.h \
     clbessel.h \
     helper.h \
-    mom.h \
     types.h \
     tissueproperties.h \
-    phantomfile.h
+    phantomfile.h \
+    bim.h
 
 macx {
 macx: LIBS += -L$$PWD/../../../../../usr/local/lib/ -laf.3.5.0
